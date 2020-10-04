@@ -15,19 +15,27 @@ The simulation library is modeled after OpenAI Gym and uses Pygame. Essentially,
 
 ```
 [boat x, boat y, boat speed, boat angle, boat angular velocity,
-	[
-		[obstacle 1 radius, obstacle 1 x, obstacle 1 y, obstacle 1 x velocity, obstacle 1 y velocity],
-		[obstacle 2 radius, ...],
-		...
-	]
+    [
+        [obstacle 1 radius, obstacle 1 x, obstacle 1 y, obstacle 1 x-velocity, obstacle 1 y-velocity],
+        [obstacle 2 radius, ...],
+        ...
+    ]
 ]
 ```
 
 The elements of this list can be used by the robot to autonomously plan its path and avoid obstacles.
 
+### Writing autonomy code
+
+Custom autonomy code can be written in the `choose_action(env, state)` function in `main.py`. Included as parameters
+are the `state` (explained above) and the `env` (environment).
+
+It is unlikely that the code will need to access the environment directly, but it is included for ease of access in
+case it is necessary.
+
 ## Todos
 
-- Detect collision of boat with obstacle and terminate simulation
+- Detect collision of boat with obstacle and terminate simulation: `CollisionDetection` branch
 - Add currents
 - More diverse obstacles
 - Change the state representation (for example don’t give exact coordinates but distances to nearby obstacles)

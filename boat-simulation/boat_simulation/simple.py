@@ -72,12 +72,13 @@ class SimpleBoatSim(object):
     def reset(self):
         """Resets simulation and returns initial state"""
         self.boat_coords = ((SCREEN_WIDTH - BOAT_WIDTH)/2, (SCREEN_HEIGHT - BOAT_HEIGHT)/2)
-        self.angle = 90
+        self.angle = 0
 
         self.speed = 0
         self.angular_speed = 0
 
-        for obs in self.obstacles:
+        obs_list = self.obstacles.sprites()
+        for obs in obs_list:
             obs.kill()
 
         self.obstacles = pygame.sprite.Group()
@@ -87,6 +88,7 @@ class SimpleBoatSim(object):
 
     def render(self):
         """Repeatedly call this function in your loop if you want to visualize the simulation"""
+
         if self.screen is None:
             self.screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
 
@@ -102,7 +104,8 @@ class SimpleBoatSim(object):
         self.boat_sprite.step()
 
     def render_obstacles(self):
-        for obs in self.obstacles:
+        obs_list = self.obstacles.sprites()
+        for obs in obs_list:
             if obs.step() == -1:
                 obs.kill()
 

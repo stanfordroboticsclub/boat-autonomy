@@ -67,7 +67,14 @@ class SimpleBoatSim(object):
             obs_states.append([obs.radius, obs.rect.x, obs.rect.y, obs.velocity[0], obs.velocity[1]])
         state.append(obs_states)
 
-        return state, 0, False, None
+        # gets all sprites in the obstacles Group that have collided with the boat
+        collision = pygame.sprite.spritecollide(self.boat_sprite, self.obstacles, True)
+
+        end_sim = False
+        if len(collision) > 0:
+            end_sim = True
+
+        return state, 0, end_sim, None
 
     def reset(self):
         """Resets simulation and returns initial state"""

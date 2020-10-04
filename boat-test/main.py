@@ -60,5 +60,8 @@ if __name__ == '__main__':
             check_for_quit()
             action = choose_action(env, state)
 
-        state = env.step(action)[0]
+        state, _, end_sim, _ = env.step(action)
         env.render()
+        if end_sim:
+            # This can be replaced with env.close() to end the simulation.
+            env.reset()

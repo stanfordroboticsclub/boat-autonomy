@@ -8,6 +8,8 @@
 - `pip install -e .`
 - `cd ../boat-test`
 - `python main.py`
+  - To specify a controller to use, type `python main.py -c controller_name`. When not specified, it defaults to the KeyboardController.
+  - A full list of controller names can be accessed in the help entry (`python main.py -h`)
 
 If you encounter any issues with running the simulation, refer to the troubleshooting section at the end of this document.
 
@@ -27,11 +29,13 @@ The elements of this list can be used by the robot to autonomously plan its path
 
 ### Writing autonomy code
 
-Custom autonomy code can be written in the `choose_action(env, state)` function in `main.py`. Included as parameters
-are the `state` (explained above) and the `env` (environment).
+There are a few steps that are necessary to write custom autonomy code.
 
-It is unlikely that the code will need to access the environment directly, but it is included for ease of access in
-case it is necessary.
+1. Duplicate the `autonomy_controller_template.py` file in `boat-test/controller`.
+2. Fill in the `select_action_from_state(env, state)` method with the custom autonomy code.
+3. In `main.py`, add a short identifier for the new controller into the `controller_arg_names` list.
+4. Add a new `elif` statement in the section for setting the controller. Follow the pattern of the previous `if`/`elif` statements, replacing the identifier string with the custom identifier from step 2.
+5. Run the simulation with `python main.py -c custom_identifier`.
 
 ## Todos
 

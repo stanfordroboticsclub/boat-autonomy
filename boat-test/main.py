@@ -1,67 +1,38 @@
-import pygame
-from boat_simulation.simple import SimpleBoatSim, Action
-
-from pygame.locals import (
-    K_UP,
-    K_DOWN,
-    K_LEFT,
-    K_RIGHT,
-    K_ESCAPE,
-    KEYDOWN,
-    QUIT,
-)
+from boat_simulation.simple import SimpleBoatSim
+from controller.keyboard_controller import KeyboardController
+from controller.autonomy_controller_template import AutonomyControllerTemplate
+import argparse
 
 
-def check_for_quit():
-    for event in pygame.event.get():
-        if event.type == KEYDOWN:
-            if event.key == K_ESCAPE or event.type == QUIT:
-                env.close()
-        if event.type == QUIT:
-            env.close()
+def main():
+    # Command line arguments
+    controller_arg_names = ["keyboard", "autonomy_template"]
 
+    parser = argparse.ArgumentParser(description='Run the boat simulation.')
+    parser.add_argument('--controller', '-c', help="Choose the name of the controller to use",
+                        choices=controller_arg_names, default=controller_arg_names[0])
+    args = parser.parse_args()
 
-def user_control(env):
-    for event in pygame.event.get():
-        if event.type == KEYDOWN:
-            if event.key == K_ESCAPE or event.type == QUIT:
-                env.close()
-            if event.key == K_UP:
-                return Action(0, 5)
-            if event.key == K_DOWN:
-                return Action(0, -5)
-            if event.key == K_LEFT:
-                return Action(1, 5)
-            if event.key == K_RIGHT:
-                return Action(1, -5)
-        if event.type == QUIT:
-            env.close()
-
-    return Action(0, 0)
-
-
-def choose_action(env, state):
-    # replace this code with autonomy code; output an Action given the state as input
-    return Action(0, 0)
-
-
-if __name__ == '__main__':
     env = SimpleBoatSim()
     state = env.reset()
 
-    keyboard_control = True
+    controller = None
+    if args.controller == "keyboard":
+        controller = KeyboardController()
+    elif args.controller == "autonomy_template":
+        controller = AutonomyControllerTemplate()
 
+    print("Instantiated controller:", controller.name)
+    
     while True:
-        action = Action(0, 0)
-
-        if keyboard_control:
-            action = user_control(env)
-        else:
-            check_for_quit()
-            action = choose_action(env, state)
-
-        state, _, end_sim, _ = env.step(action)
+        action = controller.choose_action(env, state)
+        state, _, end_sim, _ = env.step(action)[0]
         env.render()
+        
         if end_sim:
             # This can be replaced with env.close() to end the simulation.
             env.reset()
+
+
+if __name__ == '__main__':
+    main()

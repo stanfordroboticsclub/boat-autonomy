@@ -22,7 +22,8 @@ class SimpleBoatSim(object):
         pygame.init()
         self.screen = None
         self.boat_sprite = BoatSprite(BOAT_WIDTH, BOAT_HEIGHT)
-        self.boat_coords = ((SCREEN_WIDTH - BOAT_WIDTH)/2, (SCREEN_HEIGHT - BOAT_HEIGHT)/2)
+        self.boat_coords = ((BOAT_WIDTH)/2, SCREEN_HEIGHT - (BOAT_HEIGHT)/2)
+        self.waypoints = [self.boat_coords]
 
         self.speed = 0
         self.angular_speed = 0
@@ -78,7 +79,7 @@ class SimpleBoatSim(object):
 
     def reset(self):
         """Resets simulation and returns initial state"""
-        self.boat_coords = ((SCREEN_WIDTH - BOAT_WIDTH)/2, (SCREEN_HEIGHT - BOAT_HEIGHT)/2)
+        self.boat_coords = ((BOAT_WIDTH)/2, SCREEN_HEIGHT - (BOAT_HEIGHT)/2)
         self.angle = 0
 
         self.speed = 0
@@ -91,6 +92,11 @@ class SimpleBoatSim(object):
         self.obstacles = pygame.sprite.Group()
         state = [self.boat_coords[0], self.boat_coords[1], self.speed, self.angle, self.angular_speed, []]
 
+        self.waypoints = self.generate_data(15, (BOAT_WIDTH)/2, SCREEN_WIDTH - (BOAT_WIDTH)/2, BOAT_HEIGHT/2, SCREEN_HEIGHT - (BOAT_HEIGHT)/2)
+        self.waypoints.append(self.boat_coords)
+
+        self.waypoints = self.compute_convex_hull(self.waypoints)
+
         return state
 
     def render(self):
@@ -100,6 +106,7 @@ class SimpleBoatSim(object):
             self.screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
 
         self.screen.fill((3, 169, 252))
+        pygame.draw.lines(self.screen, (255, 221, 128), True, self.waypoints, 10)
         self.render_boat()
         self.render_obstacles()
         pygame.display.update()
@@ -124,6 +131,53 @@ class SimpleBoatSim(object):
     def close(self):
         pygame.quit()
         sys.exit(0)
+
+    def generate_data(self, n, low_x, high_x, low_y, high_y):
+        points = []
+
+        for i in range(n):
+            points.append((np.random.uniform(low_x, high_x), np.random.uniform(low_y, high_y)))
+
+        return points
+
+    def compute_min_x(self, data):
+        min_idx = 0
+
+        for i in range(len(data)):
+            if (data[i][0] < data[min_idx][0] or
+                (data[i][0] == data[min_idx][0] and data[i][1] < data[min_idx][1])):
+
+                min_idx = i
+
+        return min_idx
+
+    def compute_convex_hull(self, data):
+        p0_idx = self.compute_min_x(data)
+        p0 = data[p0_idx]
+        hull = [p0]
+        data.pop(p0_idx)
+
+        data.sort(key=lambda x: (x[1] - p0[1]) / (x[0] - p0[0]))
+
+        hull.append(data.pop(0))
+        hull.append(data.pop(0))
+
+        while len(data) > 0:
+            latest = data.pop(0)
+
+            while True:
+                v = (latest[0] - hull[-1][0], latest[1] - hull[-1][1])
+                u = (hull[-2][0] - hull[-1][0], hull[-2][1] - hull[-1][1])
+
+                cross = v[0] * u[1] - v[1] * u[0]
+
+                if cross >= 0:
+                    break
+
+                hull.pop(-1)
+            hull.append(latest)
+
+        return hull
 
 
 class Action(object):

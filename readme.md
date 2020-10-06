@@ -8,6 +8,8 @@
 - `pip install -e .`
 - `cd ../boat-test`
 - `python main.py`
+  - To specify a controller to use, type `python main.py -c controller_name`. When not specified, it defaults to the KeyboardController.
+  - A full list of controller names can be accessed in the help entry (`python main.py -h`)
 
 If you encounter any issues with running the simulation, refer to the troubleshooting section at the end of this document.
 
@@ -15,19 +17,29 @@ The simulation library is modeled after OpenAI Gym and uses Pygame. Essentially,
 
 ```
 [boat x, boat y, boat speed, boat angle, boat angular velocity,
-	[
-		[obstacle 1 radius, obstacle 1 x, obstacle 1 y, obstacle 1 x velocity, obstacle 1 y velocity],
-		[obstacle 2 radius, ...],
-		...
-	]
+    [
+        [obstacle 1 radius, obstacle 1 x, obstacle 1 y, obstacle 1 x-velocity, obstacle 1 y-velocity],
+        [obstacle 2 radius, ...],
+        ...
+    ]
 ]
 ```
 
 The elements of this list can be used by the robot to autonomously plan its path and avoid obstacles.
 
+### Writing autonomy code
+
+There are a few steps that are necessary to write custom autonomy code.
+
+1. Duplicate the `autonomy_controller_template.py` file in `boat-test/controller`.
+2. Fill in the `select_action_from_state(env, state)` method with the custom autonomy code.
+3. In `main.py`, add a short identifier for the new controller into the `controller_arg_names` list.
+4. Add a new `elif` statement in the section for setting the controller. Follow the pattern of the previous `if`/`elif` statements, replacing the identifier string with the custom identifier from step 2.
+5. Run the simulation with `python main.py -c custom_identifier`.
+
 ## Todos
 
-- Detect collision of boat with obstacle and terminate simulation
+- Detect collision of boat with obstacle and terminate simulation: `CollisionDetection` branch
 - Add currents
 - More diverse obstacles
 - Change the state representation (for example don’t give exact coordinates but distances to nearby obstacles)

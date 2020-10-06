@@ -26,7 +26,7 @@ def main():
     
     while True:
         action = controller.choose_action(env, state)
-        state, _, end_sim, _ = env.step(action)[0]
+        state, _, end_sim, _ = env.step(action)
         env.render()
         
         if end_sim:

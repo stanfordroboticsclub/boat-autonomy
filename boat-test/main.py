@@ -23,11 +23,15 @@ def main():
         controller = AutonomyControllerTemplate()
 
     print("Instantiated controller:", controller.name)
-
+    
     while True:
         action = controller.choose_action(env, state)
-        state = env.step(action)[0]
+        state, _, end_sim, _ = env.step(action)
         env.render()
+        
+        if end_sim:
+            # This can be replaced with env.close() to end the simulation.
+            env.reset()
 
 
 if __name__ == '__main__':

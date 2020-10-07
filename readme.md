@@ -56,6 +56,6 @@ There are a few steps that are necessary to write custom autonomy code.
 
 If this problem occurs, install Pygame version 2.0.0.dev4 as follows:
 
-`pip install pygame==2.0.0.dev4`
+`pip install pygame==2.0.0.dev6`
 
 Once it is installed, the simulation should run much more smoothly.

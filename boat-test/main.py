@@ -13,7 +13,7 @@ def main():
                         choices=controller_arg_names, default=controller_arg_names[0])
     args = parser.parse_args()
 
-    env = SimpleBoatSim()
+    env = SimpleBoatSim(current_level=10)
     state = env.reset()
 
     controller = None

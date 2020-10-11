@@ -17,12 +17,12 @@ ANGLE_SCALE = .01
 class SimpleBoatSim(object):
     """boat simulation"""
 
-    def __init__(self, max_obstacles=10, obs_chance=5e-2):
+    def __init__(self, max_obstacles=10, obs_chance=5e-2, current_level=1):
         super(SimpleBoatSim, self).__init__()
         pygame.init()
         self.screen = None
         self.boat_sprite = BoatSprite(BOAT_WIDTH, BOAT_HEIGHT)
-        self.boat_coords = ((BOAT_WIDTH)/2, SCREEN_HEIGHT - (BOAT_HEIGHT)/2)
+        self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
         self.waypoints = [self.boat_coords]
 
         self.speed = 0
@@ -33,6 +33,8 @@ class SimpleBoatSim(object):
         self.max_obstacles = max_obstacles
         self.obs_chance = obs_chance
         self.clock = pygame.time.Clock()
+
+        self.current_level = current_level
 
     def step(self, action):
         """
@@ -49,17 +51,27 @@ class SimpleBoatSim(object):
         elif action.type == 1:
             self.angular_speed += action.value
 
-        self.boat_coords = (self.boat_coords[0] - VEL_SCALE*self.speed*np.sin(np.pi*self.angle/180),
-                            self.boat_coords[1] - VEL_SCALE*self.speed*np.cos(np.pi*self.angle/180))
-        self.angle += ANGLE_SCALE*self.angular_speed
+        boat_dx = VEL_SCALE * self.speed * np.sin(np.pi * self.angle / 180)
+        boat_dy = VEL_SCALE * self.speed * np.cos(np.pi * self.angle / 180)
+
+        # Account for ocean currents
+        ocean_current_x, ocean_current_y = self.compute_ocean_current(self.boat_coords[0], self.boat_coords[1])
+
+        boat_dx -= ocean_current_x
+        boat_dy -= ocean_current_y
+
+        self.boat_coords = (self.boat_coords[0] - boat_dx,
+                            self.boat_coords[1] - boat_dy)
+        self.angle += ANGLE_SCALE * self.angular_speed
 
         state = [self.boat_coords[0], self.boat_coords[1], self.speed, self.angle, self.angular_speed]
 
         if np.random.uniform() < self.obs_chance and len(self.obstacles) < self.max_obstacles:
             while True:
                 proposed_obstacle = ObstacleSprite(np.random.randint(10, 20),
-                    coords=(np.random.uniform(0, SCREEN_WIDTH), np.random.uniform(0, SCREEN_HEIGHT)),
-                    live_counter=np.random.randint(4e3, 5e3))
+                                                   coords=(np.random.uniform(0, SCREEN_WIDTH),
+                                                           np.random.uniform(0, SCREEN_HEIGHT)),
+                                                   live_counter=np.random.randint(4e3, 5e3))
                 if not pygame.sprite.collide_rect(proposed_obstacle, self.boat_sprite):
                     break
             self.obstacles.add(proposed_obstacle)
@@ -80,7 +92,7 @@ class SimpleBoatSim(object):
 
     def reset(self):
         """Resets simulation and returns initial state"""
-        self.boat_coords = ((BOAT_WIDTH)/2, SCREEN_HEIGHT - (BOAT_HEIGHT)/2)
+        self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
         self.angle = 0
 
         self.speed = 0
@@ -93,10 +105,20 @@ class SimpleBoatSim(object):
         self.obstacles = pygame.sprite.Group()
         state = [self.boat_coords[0], self.boat_coords[1], self.speed, self.angle, self.angular_speed, []]
 
-        self.waypoints = self.generate_data(15, (BOAT_WIDTH)/2, SCREEN_WIDTH - (BOAT_WIDTH)/2, BOAT_HEIGHT/2, SCREEN_HEIGHT - (BOAT_HEIGHT)/2)
+        self.waypoints = self.generate_data(15, (BOAT_WIDTH) / 2, SCREEN_WIDTH - (BOAT_WIDTH) / 2, BOAT_HEIGHT / 2,
+                                            SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
         self.waypoints.append(self.boat_coords)
 
         self.waypoints = self.compute_convex_hull(self.waypoints)
+
+        # Ocean currents
+        # Currently follows sin(ax+by), cos(cx+dy)
+
+        ocean_current_multiplier = 1e-2
+        self.ocean_current_a = np.random.uniform() * ocean_current_multiplier
+        self.ocean_current_b = np.random.uniform() * ocean_current_multiplier
+        self.ocean_current_c = np.random.uniform() * ocean_current_multiplier
+        self.ocean_current_d = np.random.uniform() * ocean_current_multiplier
 
         return state
 
@@ -110,6 +132,15 @@ class SimpleBoatSim(object):
         pygame.draw.lines(self.screen, (255, 221, 128), True, self.waypoints, 10)
         self.render_boat()
         self.render_obstacles()
+        self.render_ocean_currents()
+
+        # print current boat velocity
+        font = pygame.font.SysFont(None, 24)
+        vel_text = font.render(f"vel: %s" % (self.speed), True, (255, 255, 255))
+        ang_vel_text = font.render(f"ang. vel: %s" % (self.angular_speed), True, (255, 255, 255))
+        self.screen.blit(vel_text, (20, 20))
+        self.screen.blit(ang_vel_text, (20, 50))
+
         pygame.display.update()
 
         # cap the framerate at 60 fps
@@ -133,6 +164,15 @@ class SimpleBoatSim(object):
             obs.rect = obs.surf.get_rect(center=(obs.curr_coords[0], obs.curr_coords[1]))
             self.screen.blit(obs.surf, (obs.rect.x, obs.rect.y))
 
+    def render_ocean_currents(self):
+        for x in range(0, SCREEN_WIDTH + 1, 100):
+            for y in range(0, SCREEN_HEIGHT + 1, 100):
+                ocean_x, ocean_y = self.compute_ocean_current(x, y)
+                ocean_x *= 300 / self.current_level
+                ocean_y *= 300 / self.current_level
+                pygame.draw.line(self.screen, (10, 50, 255), (x, y), (x + ocean_x, y + ocean_y), 3)
+                pygame.draw.circle(self.screen, (10, 50, 255), (x + ocean_x, y + ocean_y), 5)
+
     def close(self):
         pygame.quit()
         sys.exit(0)
@@ -150,8 +190,7 @@ class SimpleBoatSim(object):
 
         for i in range(len(data)):
             if (data[i][0] < data[min_idx][0] or
-                (data[i][0] == data[min_idx][0] and data[i][1] < data[min_idx][1])):
-
+                    (data[i][0] == data[min_idx][0] and data[i][1] < data[min_idx][1])):
                 min_idx = i
 
         return min_idx
@@ -184,11 +223,19 @@ class SimpleBoatSim(object):
 
         return hull
 
+    def compute_ocean_current(self, x, y):
+        ocean_current_x = self.current_level * 0.1 * np.cos(
+            self.ocean_current_a * x + self.ocean_current_b * y)
+        ocean_current_y = self.current_level * 0.1 * np.cos(
+            self.ocean_current_c * x + self.ocean_current_d * y)
+
+        return ocean_current_x, ocean_current_y
+
 
 class Action(object):
     """class representing action boat is taking."""
 
     def __init__(self, type, value):
         super(Action, self).__init__()
-        self.type = type        # 0 is forward/back, 1 is turn
-        self.value = value      # How much to change (angular) velocity
+        self.type = type  # 0 is forward/back, 1 is turn
+        self.value = value  # How much to change (angular) velocity

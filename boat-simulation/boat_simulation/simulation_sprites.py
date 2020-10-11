@@ -30,7 +30,7 @@ class ObstacleSprite(pygame.sprite.Sprite):
         self.radius = radius
 
         if velocity is None:
-            velocity = [np.random.uniform(-.1, .1), np.random.uniform(-.1, .1)]
+            velocity = [np.random.uniform(-1, 1), np.random.uniform(-1, 1)]
         self.velocity = velocity
         self.live_counter = live_counter
 

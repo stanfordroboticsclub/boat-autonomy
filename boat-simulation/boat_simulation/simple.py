@@ -17,7 +17,7 @@ ANGLE_SCALE = .01
 class SimpleBoatSim(object):
     """boat simulation"""
 
-    def __init__(self, max_obstacles=10, obs_chance=5e-3):
+    def __init__(self, max_obstacles=10, obs_chance=5e-2):
         super(SimpleBoatSim, self).__init__()
         pygame.init()
         self.screen = None
@@ -32,6 +32,7 @@ class SimpleBoatSim(object):
         self.obstacles = pygame.sprite.Group()
         self.max_obstacles = max_obstacles
         self.obs_chance = obs_chance
+        self.clock = pygame.time.Clock()
 
     def step(self, action):
         """
@@ -110,6 +111,10 @@ class SimpleBoatSim(object):
         self.render_boat()
         self.render_obstacles()
         pygame.display.update()
+
+        # cap the framerate at 60 fps
+        self.clock.tick(60)
+        # print(self.clock.get_fps())
 
     def render_boat(self):
         self.boat_sprite.rotated_surf = pygame.transform.rotate(self.boat_sprite.surf, self.angle)

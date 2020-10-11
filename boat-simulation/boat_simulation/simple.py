@@ -34,6 +34,7 @@ class SimpleBoatSim(object):
         self.obs_chance = obs_chance
         self.clock = pygame.time.Clock()
 
+        self.total_time = 0
         self.current_level = current_level
 
     def step(self, action):
@@ -84,6 +85,8 @@ class SimpleBoatSim(object):
         # gets all sprites in the obstacles Group that have collided with the boat
         collision = pygame.sprite.spritecollide(self.boat_sprite, self.obstacles, True)
 
+        self.total_time += 1/60
+
         end_sim = False
         if len(collision) > 0:
             end_sim = True
@@ -119,6 +122,7 @@ class SimpleBoatSim(object):
         self.ocean_current_b = np.random.uniform() * ocean_current_multiplier
         self.ocean_current_c = np.random.uniform() * ocean_current_multiplier
         self.ocean_current_d = np.random.uniform() * ocean_current_multiplier
+        self.ocean_current_e = np.random.uniform() * ocean_current_multiplier
 
         return state
 
@@ -130,9 +134,10 @@ class SimpleBoatSim(object):
 
         self.screen.fill((3, 169, 252))
         pygame.draw.lines(self.screen, (255, 221, 128), True, self.waypoints, 10)
+        
+        self.render_ocean_currents()
         self.render_boat()
         self.render_obstacles()
-        self.render_ocean_currents()
 
         # print current boat velocity
         font = pygame.font.SysFont(None, 24)
@@ -225,9 +230,9 @@ class SimpleBoatSim(object):
 
     def compute_ocean_current(self, x, y):
         ocean_current_x = self.current_level * 0.1 * np.cos(
-            self.ocean_current_a * x + self.ocean_current_b * y)
+            self.ocean_current_a * x + self.ocean_current_b * y + 15 * self.current_level * self.ocean_current_e * self.total_time)
         ocean_current_y = self.current_level * 0.1 * np.cos(
-            self.ocean_current_c * x + self.ocean_current_d * y)
+            self.ocean_current_c * x + self.ocean_current_d * y + 15 * self.current_level * self.ocean_current_e * self.total_time)
 
         return ocean_current_x, ocean_current_y
 

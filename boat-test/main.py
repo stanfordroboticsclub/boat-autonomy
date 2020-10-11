@@ -13,7 +13,7 @@ def main():
                         choices=controller_arg_names, default=controller_arg_names[0])
     args = parser.parse_args()
 
-    env = SimpleBoatSim(current_level=10)
+    env = SimpleBoatSim(current_level=3)
     state = env.reset()
 
     controller = None
@@ -23,12 +23,12 @@ def main():
         controller = AutonomyControllerTemplate()
 
     print("Instantiated controller:", controller.name)
-    
+
     while True:
         action = controller.choose_action(env, state)
         state, _, end_sim, _ = env.step(action)
         env.render()
-        
+
         if end_sim:
             # This can be replaced with env.close() to end the simulation.
             env.reset()

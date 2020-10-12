@@ -63,7 +63,12 @@ class SimpleBoatSim(object):
 
         self.boat_coords = (self.boat_coords[0] - boat_dx,
                             self.boat_coords[1] - boat_dy)
-        self.angle += ANGLE_SCALE * self.angular_speed
+
+        # Currents apply a torque on the boat and make it rotate
+        d_theta = ANGLE_SCALE * self.angular_speed
+        d_theta += self.current_rotation()
+        # print(d_theta)
+        self.angle += d_theta
 
         state = [self.boat_coords[0], self.boat_coords[1], self.speed, self.angle, self.angular_speed]
 
@@ -92,6 +97,31 @@ class SimpleBoatSim(object):
             end_sim = True
 
         return state, 0, end_sim, None
+
+    def proj(self, a, b):   # Project a onto b
+        coefficient = (a[0] * b[0] + a[1] * b[1]) / (b[0]**2 + b[1]**2)
+        return (coefficient * b[0], coefficient * b[1])
+
+    def current_rotation(self):
+        top_pos = (self.boat_coords[0] - BOAT_HEIGHT/2 * np.sin(np.pi * self.angle / 180),
+            self.boat_coords[1] - BOAT_HEIGHT/2 * np.cos(np.pi * self.angle / 180))
+        bottom_pos = (self.boat_coords[0] + BOAT_HEIGHT/2 * np.sin(np.pi * self.angle / 180),
+            self.boat_coords[1] + BOAT_HEIGHT/2 * np.cos(np.pi * self.angle / 180))
+
+        top_x, top_y = self.compute_ocean_current(top_pos[0], top_pos[1])
+        bot_x, bot_y = self.compute_ocean_current(bottom_pos[0], bottom_pos[1])
+
+        # project <top_x, top_y> onto the 'boat vector'
+        boat_vector = (top_pos[0] - bottom_pos[0], top_pos[1] - bottom_pos[1])
+        top_along = self.proj((top_x, top_y), boat_vector)
+        bot_along = self.proj((bot_x, bot_y), boat_vector)
+
+        top_perp = (top_x - top_along[0], top_y - top_along[1])
+        bot_perp = (bot_x - bot_along[0], bot_y - bot_along[1])
+
+        total = ((top_perp[0] + bot_perp[0])/2, (top_perp[1] + bot_perp[1])/2)
+
+        return np.sqrt(total[0]**2 + total[1]**2)
 
     def reset(self):
         """Resets simulation and returns initial state"""
@@ -134,7 +164,7 @@ class SimpleBoatSim(object):
 
         self.screen.fill((3, 169, 252))
         pygame.draw.lines(self.screen, (255, 221, 128), True, self.waypoints, 10)
-        
+
         self.render_ocean_currents()
         self.render_boat()
         self.render_obstacles()

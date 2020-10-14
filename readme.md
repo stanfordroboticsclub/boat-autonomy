@@ -7,9 +7,12 @@
 - `cd boat-simulation`
 - `pip install -e .`
 - `cd ../boat-test`
-- `python main.py`
-  - To specify a controller to use, type `python main.py -c controller_name`. When not specified, it defaults to the KeyboardController.
-  - A full list of controller names can be accessed in the help entry (`python main.py -h`)
+- `python main.py` (Add the flag `--no_render` or `-nr` if you do not want to visualize the simulation)
+- To specify a controller to use, type `python main.py -c controller_name`. When not specified, it defaults to the KeyboardController.
+- The intensity of the current can be controlled using the `-cl` flag, eg: `python main.py -cl 5`. Default is 3.
+- The nature of the state representation available to the controller to plan its actions can be controlled with the `-sm` flag, eg: `python main.py -sm noisy`.
+  Default is `ground_truth`.
+- A full list of controller names and all other arguments can be accessed in the help entry (`python main.py -h`)
 
 If you encounter any issues with running the simulation, refer to the troubleshooting section at the end of this document.
 

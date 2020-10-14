@@ -17,7 +17,7 @@ ANGLE_SCALE = .01
 class SimpleBoatSim(object):
     """boat simulation"""
 
-    def __init__(self, max_obstacles=10, obs_chance=5e-2, current_level=1):
+    def __init__(self, max_obstacles=10, obs_chance=5e-2, current_level=1, state_mode="ground_truth"):
         super(SimpleBoatSim, self).__init__()
         pygame.init()
         self.screen = None
@@ -36,6 +36,38 @@ class SimpleBoatSim(object):
 
         self.total_time = 0
         self.current_level = current_level
+        self.state_mode = state_mode
+
+    def get_ground_truth_state(self):
+        state = [self.boat_coords[0], self.boat_coords[1], self.speed, self.angle, self.angular_speed]
+
+        obs_states = []
+        for obs in self.obstacles:
+            obs_states.append([obs.radius, obs.rect.x, obs.rect.y, obs.velocity[0], obs.velocity[1]])
+        state.append(obs_states)
+
+        return state
+
+    def get_noisy_state(self, noise_level=.5, max_delete=2):
+        truth = self.get_ground_truth_state()
+
+        for i in range(5):
+            truth[i] += .5*(np.random.uniform() - .5)
+
+        # Delete a few obstacles
+        obs_states = truth[5]
+
+        if len(obs_states) > 0:
+            num_delete = np.random.randint(0, min(max_delete, len(obs_states)))
+            to_delete = np.random.randint(0, len(obs_states), size=num_delete)
+            obs_states = [obs_states[i] for i in range(len(obs_states)) if i not in to_delete]
+
+        # Add noise to obstacle states
+        for i in range(len(obs_states)):
+            obs_states[i] = [k + .5*(np.random.uniform() - .5) for k in obs_states[i]]
+
+        truth[5] = obs_states
+        return truth
 
     def step(self, action):
         """
@@ -70,22 +102,21 @@ class SimpleBoatSim(object):
         # print(d_theta)
         self.angle += d_theta
 
-        state = [self.boat_coords[0], self.boat_coords[1], self.speed, self.angle, self.angular_speed]
-
         if np.random.uniform() < self.obs_chance and len(self.obstacles) < self.max_obstacles:
             while True:
                 proposed_obstacle = ObstacleSprite(np.random.randint(10, 20),
                                                    coords=(np.random.uniform(0, SCREEN_WIDTH),
                                                            np.random.uniform(0, SCREEN_HEIGHT)),
-                                                   live_counter=np.random.randint(4e3, 5e3))
+                                                   live_counter=np.random.randint(500, 1e3))
                 if not pygame.sprite.collide_rect(proposed_obstacle, self.boat_sprite):
                     break
             self.obstacles.add(proposed_obstacle)
 
-        obs_states = []
-        for obs in self.obstacles:
-            obs_states.append([obs.radius, obs.rect.x, obs.rect.y, obs.velocity[0], obs.velocity[1]])
-        state.append(obs_states)
+        # get the new state of the environment
+        if self.state_mode == "ground_truth":
+            state = self.get_ground_truth_state()
+        elif self.state_mode == "noisy":
+            state = self.get_noisy_state()
 
         # gets all sprites in the obstacles Group that have collided with the boat
         collision = pygame.sprite.spritecollide(self.boat_sprite, self.obstacles, True)

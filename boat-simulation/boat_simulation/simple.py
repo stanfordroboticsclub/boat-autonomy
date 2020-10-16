@@ -170,8 +170,6 @@ class SimpleBoatSim(object):
             obs.kill()
 
         self.obstacles = pygame.sprite.Group()
-        state = [self.boat_coords[0], self.boat_coords[1], self.speed, self.angle, self.angular_speed, []]
-
         self.waypoints = self.generate_data(15, (BOAT_WIDTH) / 2, SCREEN_WIDTH - (BOAT_WIDTH) / 2, BOAT_HEIGHT / 2,
                                             SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
         self.waypoints.append(self.boat_coords)
@@ -187,6 +185,13 @@ class SimpleBoatSim(object):
         self.ocean_current_c = np.random.uniform() * ocean_current_multiplier
         self.ocean_current_d = np.random.uniform() * ocean_current_multiplier
         self.ocean_current_e = np.random.uniform() * ocean_current_multiplier
+
+        if self.state_mode == "ground_truth":
+            state = self.get_ground_truth_state()
+        elif self.state_mode == "noisy":
+            state = self.get_noisy_state()
+        elif self.state_mode == "sensor":
+            state = self.get_sensor_observation(0)
 
         return state
 

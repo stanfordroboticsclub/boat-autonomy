@@ -120,7 +120,6 @@ class SimpleBoatSim(object):
             state = self.get_noisy_state()
         elif self.state_mode == "sensor":
             state = self.get_sensor_observation(d_theta)
-            print(state)
 
         # gets all sprites in the obstacles Group that have collided with the boat
         collision = pygame.sprite.spritecollide(self.boat_sprite, self.obstacles, True)

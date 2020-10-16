@@ -6,7 +6,7 @@ import argparse
 
 def parse_args():
     controller_arg_names = ["keyboard", "autonomy_template"]
-    state_modes = ["ground_truth", "noisy"]
+    state_modes = ["ground_truth", "noisy", "sensor"]
 
     parser = argparse.ArgumentParser(description='Run the boat simulation.')
     parser.add_argument('--controller', '-c', help="Choose the name of the controller to use",

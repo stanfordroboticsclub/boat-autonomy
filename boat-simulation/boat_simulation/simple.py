@@ -48,7 +48,7 @@ class SimpleBoatSim(object):
 
         return state
 
-    def get_noisy_state(self, noise_level=.5, max_delete=2):
+    def get_noisy_state(self, noise_level=.5, prob_delete=.1):
         truth = self.get_ground_truth_state()
 
         for i in range(5):
@@ -56,11 +56,7 @@ class SimpleBoatSim(object):
 
         # Delete a few obstacles
         obs_states = truth[5]
-
-        if len(obs_states) > 0:
-            num_delete = np.random.randint(0, min(max_delete, len(obs_states)))
-            to_delete = np.random.randint(0, len(obs_states), size=num_delete)
-            obs_states = [obs_states[i] for i in range(len(obs_states)) if i not in to_delete]
+        obs_states = [obs for obs in obs_states if np.random.uniform() < prob_delete]
 
         # Add noise to obstacle states
         for i in range(len(obs_states)):
@@ -68,6 +64,11 @@ class SimpleBoatSim(object):
 
         truth[5] = obs_states
         return truth
+
+    def get_sensor_observation(self, d_theta, ang_vel_noise=.5, heading_noise=1):
+        # [gyro angular velocity (deg/s), magnetometer heading (degrees)]
+        return [ang_vel_noise*np.random.uniform(-1, 1) + d_theta/(1/60),
+            heading_noise*np.random.uniform(-1, 1) + self.angle]
 
     def step(self, action):
         """
@@ -117,6 +118,9 @@ class SimpleBoatSim(object):
             state = self.get_ground_truth_state()
         elif self.state_mode == "noisy":
             state = self.get_noisy_state()
+        elif self.state_mode == "sensor":
+            state = self.get_sensor_observation(d_theta)
+            print(state)
 
         # gets all sprites in the obstacles Group that have collided with the boat
         collision = pygame.sprite.spritecollide(self.boat_sprite, self.obstacles, True)
@@ -196,14 +200,15 @@ class SimpleBoatSim(object):
         self.screen.fill((3, 169, 252))
         pygame.draw.lines(self.screen, (255, 221, 128), True, self.waypoints, 10)
 
-        self.render_ocean_currents()
+        if self.current_level > 0:
+            self.render_ocean_currents()
         self.render_boat()
         self.render_obstacles()
 
         # print current boat velocity
         font = pygame.font.SysFont(None, 24)
-        vel_text = font.render(f"vel: %s" % (self.speed), True, (255, 255, 255))
-        ang_vel_text = font.render(f"ang. vel: %s" % (self.angular_speed), True, (255, 255, 255))
+        vel_text = font.render(f"vel: %s" % (VEL_SCALE * self.speed), True, (255, 255, 255))
+        ang_vel_text = font.render(f"ang. vel: %s" % (ANGLE_SCALE * self.angular_speed / (1/60)), True, (255, 255, 255))
         self.screen.blit(vel_text, (20, 20))
         self.screen.blit(ang_vel_text, (20, 50))
 

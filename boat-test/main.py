@@ -4,16 +4,26 @@ from controller.autonomy_controller_template import AutonomyControllerTemplate
 import argparse
 
 
-def main():
-    # Command line arguments
+def parse_args():
     controller_arg_names = ["keyboard", "autonomy_template"]
+    state_modes = ["ground_truth", "noisy", "sensor"]
 
     parser = argparse.ArgumentParser(description='Run the boat simulation.')
     parser.add_argument('--controller', '-c', help="Choose the name of the controller to use",
                         choices=controller_arg_names, default=controller_arg_names[0])
+    parser.add_argument('--current_level', '-cl', help="Choose the intensity of currents in the simulation",
+                        default=3)
+    parser.add_argument('--state_mode', '-sm', help="Choose the representation of the simulation state available to the boat",
+                        choices=state_modes, default=state_modes[0])
+    parser.add_argument('--no_render', '-nr', help="Set this flag in order to render the simulation",
+                        action="store_true", default=False)
     args = parser.parse_args()
+    return args
 
-    env = SimpleBoatSim()
+
+def main():
+    args = parse_args()
+    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode)
     state = env.reset()
 
     controller = None
@@ -23,12 +33,14 @@ def main():
         controller = AutonomyControllerTemplate()
 
     print("Instantiated controller:", controller.name)
-    
+
     while True:
         action = controller.choose_action(env, state)
         state, _, end_sim, _ = env.step(action)
-        env.render()
-        
+
+        if not args.no_render:
+            env.render()
+
         if end_sim:
             # This can be replaced with env.close() to end the simulation.
             env.reset()

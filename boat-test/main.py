@@ -24,7 +24,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=0)
+    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode)
     state = env.reset()
 
     controller = None

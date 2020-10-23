@@ -2,6 +2,8 @@
 
 ## Usage
 
+### Regular Usage
+
 - Download the folder named ‘boat’
 - (Optionally install anaconda, create a venv, and activate it)
 - `cd boat-simulation`
@@ -29,6 +31,12 @@ The simulation library is modeled after OpenAI Gym and uses Pygame. Essentially,
 ```
 
 The elements of this list can be used by the robot to autonomously plan its path and avoid obstacles.
+
+### MPI Usage
+
+The environment and the autonomy code can be run as two separate processes using MPI. In order to do this:
+- Install MPI and mpi4py as described here `https://mpi4py.readthedocs.io/en/stable/install.html`
+- Run using `mpiexec -n 2 python mpi_run.py`. You can add extra options through the flags described in the "regular usage" section.
 
 ### Writing autonomy code
 

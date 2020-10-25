@@ -6,10 +6,9 @@ from boat_simulation.simple import Action
 
 # Boat is modelled as a rod with two thrusters on each end
 class MinimalController(BaseController):
-    def __init__(self, waypoints):
+    def __init__(self):
         BaseController.__init__(self, "Minimal controller for autonomy")
-        self.waypoints = waypoints
-        self.curr_waypoint = 1  # 0 is assumed to be the boat's current position
+        self.curr_waypoint = 0  # 0 is assumed to be the boat's current position
 
         self.f_max = 5
         self.boat_mass = 5
@@ -30,20 +29,34 @@ class MinimalController(BaseController):
         return np.clip(alpha, -self.max_alpha_mag, self.max_alpha_mag)
 
 
-    def compute_accel(self):
-        pass
+    def compute_accel(self, dist, curr_vel, curr_heading, target_heading, max_t=1/2):
+        # if dist < 10:
+        #     return -curr_vel
+
+        # print(dist)
+        dist = np.abs(np.cos(np.deg2rad(target_heading - curr_heading)) * dist)
+        # print(dist)
+        max_t = (2 * dist / (curr_vel + 1e-5))
+        if max_t > 5:
+            accel = np.clip(dist/200, -self.a_max, self.a_max)
+        else:
+            accel = np.clip(2 * (dist - curr_vel*max_t) / (max_t ** 2), -self.a_max, self.a_max)
+        print(f"dist: {dist},  curr_vel: {curr_vel},  max t: {max_t},  accel: {accel}")
+        # accel = dist/200
+        return accel
 
 
     # uses ground truth state
     def select_action_from_state(self, env, state):
 
         if env.total_time < 1:
-            return Action(0, self.a_max)
+            # return Action(0, self.a_max)
+            return Action(0, 0)
 
         boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
-
-        waypoint = self.waypoints[self.curr_waypoint]
+        waypoint = env.waypoints[self.curr_waypoint]
         angle = np.arctan2(boat_x - waypoint[0], boat_y - waypoint[1]) * 180 / np.pi
-
         alpha = self.compute_angular_accel(boat_ang_vel, boat_angle, angle)
-        return Action(1, alpha)
+        dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
+        accel = self.compute_accel(dist, boat_speed, boat_angle, angle)
+        return Action(2, [alpha, accel])

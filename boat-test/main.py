@@ -26,7 +26,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode)
+    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=0)
     state = env.reset()
 
     controller = None
@@ -37,7 +37,7 @@ def main():
     elif args.controller == "complementary_filter_test":
         controller = ComplementaryFilterController()
     elif args.controller == "minimal_controller":
-        controller = MinimalController(env.waypoints)
+        controller = MinimalController()
 
     print("Instantiated controller:", controller.name)
 
@@ -51,6 +51,7 @@ def main():
         if end_sim:
             # This can be replaced with env.close() to end the simulation.
             env.reset()
+            print(env.waypoints)
 
 
 if __name__ == '__main__':

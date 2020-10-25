@@ -22,12 +22,18 @@ class SimpleBoatSim(object):
         pygame.init()
         self.screen = None
         self.boat_sprite = BoatSprite(BOAT_WIDTH, BOAT_HEIGHT)
-        self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
+
+        self.boat_coords = (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+        # self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
+
         self.waypoints = [self.boat_coords]
 
         self.speed = 0
         self.angular_speed = 0
         self.angle = 0
+
+        self.real_speed = 0
+        self.real_angular_speed = 0
 
         self.obstacles = pygame.sprite.Group()
         self.max_obstacles = max_obstacles
@@ -39,7 +45,7 @@ class SimpleBoatSim(object):
         self.state_mode = state_mode
 
     def get_ground_truth_state(self):
-        state = [self.boat_coords[0], self.boat_coords[1], self.speed, self.angle, self.angular_speed]
+        state = [self.boat_coords[0], self.boat_coords[1], self.real_speed, self.angle, self.real_angular_speed  / (1/60)]
 
         obs_states = []
         for obs in self.obstacles:
@@ -94,6 +100,8 @@ class SimpleBoatSim(object):
         boat_dx -= ocean_current_x
         boat_dy -= ocean_current_y
 
+        self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2)
+
         self.boat_coords = (self.boat_coords[0] - boat_dx,
                             self.boat_coords[1] - boat_dy)
 
@@ -101,7 +109,9 @@ class SimpleBoatSim(object):
         d_theta = ANGLE_SCALE * self.angular_speed
         d_theta += self.current_rotation()
         # print(d_theta)
+
         self.angle += d_theta
+        self.real_angular_speed = d_theta
 
         if np.random.uniform() < self.obs_chance and len(self.obstacles) < self.max_obstacles:
             while True:
@@ -159,11 +169,17 @@ class SimpleBoatSim(object):
 
     def reset(self):
         """Resets simulation and returns initial state"""
-        self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
+        self.boat_coords = (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
+        # self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
         self.angle = 0
+
+        self.total_time = 0
 
         self.speed = 0
         self.angular_speed = 0
+
+        self.real_speed = 0
+        self.real_angular_speed = 0
 
         obs_list = self.obstacles.sprites()
         for obs in obs_list:
@@ -211,10 +227,14 @@ class SimpleBoatSim(object):
 
         # print current boat velocity
         font = pygame.font.SysFont(None, 24)
+
         vel_text = font.render(f"vel: %s" % (VEL_SCALE * self.speed), True, (255, 255, 255))
-        ang_vel_text = font.render(f"ang. vel: %s" % (ANGLE_SCALE * self.angular_speed / (1/60)), True, (255, 255, 255))
+        ang_vel_text = font.render(f"ang. vel applied: %s" % (ANGLE_SCALE * self.angular_speed / (1/60)), True, (255, 255, 255))
+        ang_text = font.render(f"ang: %s" % (self.angle), True, (255, 255, 255))
+
         self.screen.blit(vel_text, (20, 20))
         self.screen.blit(ang_vel_text, (20, 50))
+        self.screen.blit(ang_text, (20, 80))
 
         pygame.display.update()
 

@@ -2,11 +2,13 @@ from boat_simulation.simple import SimpleBoatSim
 from controller.keyboard_controller import KeyboardController
 from controller.autonomy_controller_template import AutonomyControllerTemplate
 from controller.complementary_filter import ComplementaryFilterController
+from controller.minimal_controller import MinimalController
+
 import argparse
 
 
 def parse_args():
-    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test"]
+    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller"]
     state_modes = ["ground_truth", "noisy", "sensor"]
 
     parser = argparse.ArgumentParser(description='Run the boat simulation.')
@@ -24,7 +26,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=0)
+    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode)
     state = env.reset()
 
     controller = None
@@ -34,6 +36,8 @@ def main():
         controller = AutonomyControllerTemplate()
     elif args.controller == "complementary_filter_test":
         controller = ComplementaryFilterController()
+    elif args.controller == "minimal_controller":
+        controller = MinimalController(env.waypoints)
 
     print("Instantiated controller:", controller.name)
 

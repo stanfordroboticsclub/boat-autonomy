@@ -9,6 +9,7 @@ class BoatSprite(pygame.sprite.Sprite):
         super(BoatSprite, self).__init__()
         self.surf = pygame.Surface((boat_width, boat_height), pygame.SRCALPHA)
         self.surf.fill((204, 71, 0))
+        pygame.draw.circle(self.surf, (0, 0, 255), (boat_width/2, 10), 5)
 
         self.rotated_surf = self.surf
         self.rect = self.surf.get_rect()

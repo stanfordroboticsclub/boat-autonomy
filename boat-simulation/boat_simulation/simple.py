@@ -10,8 +10,8 @@ SCREEN_HEIGHT = 600
 BOAT_WIDTH = 22
 BOAT_HEIGHT = 44
 
-VEL_SCALE = .01
-ANGLE_SCALE = .01
+VEL_SCALE = 1/60
+ANGLE_SCALE = 1/60
 
 
 class SimpleBoatSim(object):
@@ -90,6 +90,9 @@ class SimpleBoatSim(object):
             self.speed = self.speed + action.value
         elif action.type == 1:
             self.angular_speed += action.value
+        elif action.type == 2:
+            self.angular_speed += action.value[0]
+            self.speed += action.value[1]
 
         boat_dx = VEL_SCALE * self.speed * np.sin(np.pi * self.angle / 180)
         boat_dy = VEL_SCALE * self.speed * np.cos(np.pi * self.angle / 180)
@@ -100,7 +103,7 @@ class SimpleBoatSim(object):
         boat_dx -= ocean_current_x
         boat_dy -= ocean_current_y
 
-        self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2)
+        self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE
 
         self.boat_coords = (self.boat_coords[0] - boat_dx,
                             self.boat_coords[1] - boat_dy)
@@ -224,6 +227,10 @@ class SimpleBoatSim(object):
             self.render_ocean_currents()
         self.render_boat()
         self.render_obstacles()
+
+        # draw first waypoint
+
+        pygame.draw.circle(self.screen, (255, 0, 0), self.waypoints[0], 10)
 
         # print current boat velocity
         font = pygame.font.SysFont(None, 24)

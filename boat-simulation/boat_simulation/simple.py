@@ -94,16 +94,20 @@ class SimpleBoatSim(object):
             self.angular_speed += action.value[0]
             self.speed += action.value[1]
 
-        boat_dx = VEL_SCALE * self.speed * np.sin(np.pi * self.angle / 180)
-        boat_dy = VEL_SCALE * self.speed * np.cos(np.pi * self.angle / 180)
+        intended_boat_dx = VEL_SCALE * self.speed * np.sin(np.pi * self.angle / 180)
+        intended_boat_dy = VEL_SCALE * self.speed * np.cos(np.pi * self.angle / 180)
 
         # Account for ocean currents
         ocean_current_x, ocean_current_y = self.compute_ocean_current(self.boat_coords[0], self.boat_coords[1])
 
-        boat_dx -= ocean_current_x
-        boat_dy -= ocean_current_y
+        boat_dx = intended_boat_dx - ocean_current_x
+        boat_dy = intended_boat_dy - ocean_current_y
 
         self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE
+
+        projection = (intended_boat_dx * boat_dx + intended_boat_dy * boat_dy) / VEL_SCALE * self.speed
+        if projection < 0:
+            self.real_speed *= -1
 
         self.boat_coords = (self.boat_coords[0] - boat_dx,
                             self.boat_coords[1] - boat_dy)

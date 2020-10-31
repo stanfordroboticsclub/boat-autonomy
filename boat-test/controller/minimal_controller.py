@@ -8,7 +8,6 @@ from boat_simulation.simple import Action
 class MinimalController(BaseController):
     def __init__(self):
         BaseController.__init__(self, "Minimal controller for autonomy")
-        self.curr_waypoint = 0  # 0 is assumed to be the boat's current position
 
         self.f_max = 5
         self.boat_mass = 5
@@ -20,7 +19,7 @@ class MinimalController(BaseController):
         self.accelerated = 50
 
 
-    def compute_angular_accel(self, ang_vel, curr_heading, target_heading, max_t=1/2):
+    def compute_angular_accel(self, ang_vel, curr_heading, target_heading, max_t=1):
         alpha_s = -ang_vel / max_t                          # make stationary in max_t steps
         alpha_0 = -2*curr_heading / (max_t ** 2)            # make heading = 0
         alpha_heading = 2*target_heading / (max_t ** 2)     # turn to target heading
@@ -47,13 +46,8 @@ class MinimalController(BaseController):
             # return Action(0, self.a_max)
             return Action(0, 0)
 
-        boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
-        waypoint = env.waypoints[self.curr_waypoint]
-
+        boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles, waypoint = state
         dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
-
-        if dist < 2:
-            self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
 
         angle = np.arctan2(boat_x - waypoint[0], boat_y - waypoint[1]) * 180 / np.pi
 

@@ -27,7 +27,7 @@ class SimpleBoatSim(object):
         # self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
 
         self.waypoints = [self.boat_coords]
-        self.curr_waypoint = 0
+        self.curr_waypoint = -1
 
         self.speed = 0
         self.angular_speed = 0
@@ -52,7 +52,7 @@ class SimpleBoatSim(object):
         for obs in self.obstacles:
             obs_states.append([obs.radius, obs.rect.x, obs.rect.y, obs.velocity[0], obs.velocity[1]])
         state.append(obs_states)
-        state.append(self.waypoints[self.curr_waypoint])
+        # state.append(self.waypoints[self.curr_waypoint])
 
         return state
 
@@ -122,11 +122,11 @@ class SimpleBoatSim(object):
         self.angle += d_theta
         self.real_angular_speed = d_theta
 
-        waypoint = self.waypoints[self.curr_waypoint]
-        dist = np.sqrt((self.boat_coords[0] - waypoint[0]) ** 2 + (self.boat_coords[1] - waypoint[1]) ** 2)
+        # waypoint = self.waypoints[self.curr_waypoint]
+        # dist = np.sqrt((self.boat_coords[0] - waypoint[0]) ** 2 + (self.boat_coords[1] - waypoint[1]) ** 2)
 
-        if dist < 2:
-            self.curr_waypoint = (self.curr_waypoint + 1) % len(self.waypoints)
+        # if dist < 2:
+        #     self.curr_waypoint = (self.curr_waypoint + 1) % len(self.waypoints)
 
         if np.random.uniform() < self.obs_chance and len(self.obstacles) < self.max_obstacles:
             while True:
@@ -241,7 +241,8 @@ class SimpleBoatSim(object):
         self.render_obstacles()
 
         # draw waypoint
-        pygame.draw.circle(self.screen, (207, 106, 72), self.waypoints[self.curr_waypoint], 10)
+        if self.curr_waypoint != -1:
+            pygame.draw.circle(self.screen, (207, 106, 72), self.waypoints[self.curr_waypoint], 10)
 
         # print current boat velocity
         font = pygame.font.SysFont(None, 24)
@@ -259,6 +260,9 @@ class SimpleBoatSim(object):
         # cap the framerate at 60 fps
         self.clock.tick(60)
         # print(self.clock.get_fps())
+
+    def set_waypoint(self, new_waypoint):
+        self.curr_waypoint = new_waypoint
 
     def render_boat(self):
         self.boat_sprite.rotated_surf = pygame.transform.rotate(self.boat_sprite.surf, self.angle)

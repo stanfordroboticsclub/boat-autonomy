@@ -1,6 +1,6 @@
 import numpy as np
 import pygame
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 
 from controller.base_controller import BaseController
 from boat_simulation.simple import Action
@@ -54,19 +54,19 @@ class MinimalController(BaseController):
         a = input[0]
         alpha = input[1]
 
-        theta = theta_i + ang_vel * t + .5 * alpha * t**2
+        theta = theta_i + ang_vel * t + .5 * alpha * (t**2)
 
         delta_x = x_targ - x_curr
-        dx_vel = (v_i * t + .5 * a * t ** 2) * np.sin(theta)
+        dx_vel = (v_i * t + .5 * a *( t ** 2)) * np.sin(np.deg2rad(theta))
         dx_curr = v_cx * t
 
         dx_total = delta_x + dx_vel - dx_curr
 
         delta_y = y_targ - y_curr
-        dy_vel = (v_i * t + .5 * a * t ** 2) * np.cos(theta)
+        dy_vel = (v_i * t + .5 * a * (t ** 2)) * np.cos(np.deg2rad(theta))
         dy_curr = v_cy * t
 
-        dy_total = delta_y - dy_vel - dy_curr
+        dy_total = delta_y + dy_vel - dy_curr
 
         return (dx_total) ** 2 + (dy_total) ** 2
 
@@ -81,14 +81,25 @@ class MinimalController(BaseController):
         alpha_init = self.compute_angular_accel(ang_vel, theta_i, angle)
         accel_init = self.compute_accel(dist, v_i, theta_i, angle)
 
-        solved = minimize(obj_fun, np.array([accel_init, alpha_init]), (theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy), method='Nelder-Mead')
-        # print("solved")
-        # print(solved)
+        # print(f"accel init: {accel_init}, alpha init: {alpha_init}")
+        # print("before dist")
+        # print(self.compute_objective(np.array([accel_init, alpha_init]),
+        #     theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy))
+
+        bounds = Bounds([-self.a_max, -self.max_alpha_mag], [self.a_max, self.max_alpha_mag])
+
+        solved = minimize(obj_fun, np.array([accel_init, alpha_init]),
+            (theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy), method='trust-constr', bounds=bounds,
+            options={'maxiter': 3})
+
+        # print("solved fun")
+        # print(solved.fun)
 
         x = solved.x
+        # print(f"before accel: {x[0]}, before alpha: {x[1]}")
         solved = [np.clip(x[0], -self.a_max, self.a_max), np.clip(x[1], -self.max_alpha_mag, self.max_alpha_mag)]
 
-        print(f"dist: {round(dist, 5)},  curr_vel: {round(v_i, 5)}, accel: {round(solved[0], 5)}, running_error: {round(self.running_error, 5)}")
+        print(f"dist: {round(dist, 5)},  curr_vel: {round(v_i, 5)}, accel: {round(solved[0], 5)}, alpha: {round(solved[1], 5)}, running_error: {round(self.running_error, 5)}")
 
         return solved  # (accel, alpha)
 
@@ -131,11 +142,11 @@ class MinimalController(BaseController):
         boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
         waypoint = env.waypoints[self.curr_waypoint]
 
-        # dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
+        dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
         #
-        # if abs(dist) < 2 and abs(boat_speed) < 5:
-        #     self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
-        #     self.running_error = 0
+        if abs(dist) < 2:
+            self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
+            self.running_error = 0
         #
         # self.running_error += abs(dist)
         #
@@ -149,6 +160,9 @@ class MinimalController(BaseController):
         ocean_current_x, ocean_current_y = env.compute_ocean_current(boat_x, boat_y)
         ocean_current_x *= 60
         ocean_current_y *= 60
+
+        # ocean_current_x = 0
+        # ocean_current_y = 0
 
         control = self.new_control(boat_angle, boat_ang_vel, waypoint[0], boat_x, waypoint[1], boat_y, boat_speed, ocean_current_x, ocean_current_y)
         # print("control: " + str(control))

@@ -46,7 +46,7 @@ class SimpleBoatSim(object):
         self.state_mode = state_mode
 
     def get_ground_truth_state(self):
-        state = [self.boat_coords[0], self.boat_coords[1], self.real_speed, self.angle, self.real_angular_speed  / (1/60)]
+        state = [self.boat_coords[0], self.boat_coords[1], self.speed, self.angle, self.real_angular_speed  / (1/60)]
 
         obs_states = []
         for obs in self.obstacles:

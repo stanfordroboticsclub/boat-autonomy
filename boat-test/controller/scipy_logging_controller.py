@@ -30,31 +30,9 @@ class ScipyLoggingController(BaseController):
         self.df = pd.DataFrame(columns="theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, accel_init, alpha_init, accel_solved, alpha_solved".split(', '))
 
 
-    def compute_objective_func(self, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
-        def compute_objective(self, input):
-            a = input[0]
-            alpha = input[1]
-
-            theta = theta_i + ang_vel * t + .5 * alpha * t**2
-
-            delta_x = x_targ - x_curr
-            dx_vel = (v_i * t + .5 * a * t ** 2) * np.sin(theta)
-            dx_curr = v_cx * t
-
-            dx_total = delta_x + dx_vel - dx_curr
-
-            delta_y = y_targ - y_curr
-            dy_vel = (v_i * t + .5 * a * t ** 2) * np.cos(theta)
-            dy_curr = v_cy * t
-
-            dy_total = delta_y - dy_vel - dy_curr
-
-            return (dx_total) ** 2 + (dy_total) ** 2
-
-        return compute_objective
-
-
     def compute_objective(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+        t = max(t - self.i_constant * self.running_error, 1e-3)
+
         a = input[0]
         alpha = input[1]
 
@@ -160,7 +138,7 @@ class ScipyLoggingController(BaseController):
             self.df.to_csv("logs/log.csv")
             sys.exit(0)
         #
-        # self.running_error += abs(dist)
+        self.running_error += abs(dist)
         #
         # angle = np.arctan2(boat_x - waypoint[0], boat_y - waypoint[1]) * 180 / np.pi
         #

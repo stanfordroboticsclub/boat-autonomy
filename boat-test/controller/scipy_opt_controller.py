@@ -5,6 +5,7 @@ from scipy.optimize import minimize, Bounds
 from controller.base_controller import BaseController
 from boat_simulation.simple import Action
 
+VEL_SCALE = 1/60
 
 # Boat is modelled as a rod with two thrusters on each end
 class ScipyOptController(BaseController):
@@ -27,6 +28,8 @@ class ScipyOptController(BaseController):
 
 
     def compute_objective(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+        t = max(t - self.i_constant * self.running_error, 1e-3)
+
         a = input[0]
         alpha = input[1]
 
@@ -105,6 +108,14 @@ class ScipyOptController(BaseController):
             return Action(0, 0)
 
         boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
+        boat_speed = env.speed
+
+
+        # boat_dx = intended_boat_dx - ocean_current_x
+        # boat_dy = intended_boat_dy - ocean_current_y
+        #
+        # self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE
+
         waypoint = env.waypoints[self.curr_waypoint]
 
         dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
@@ -113,11 +124,38 @@ class ScipyOptController(BaseController):
             self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
             self.running_error = 0
 
-        # self.running_error += abs(dist)
+        self.running_error += abs(dist)
 
         ocean_current_x, ocean_current_y = env.compute_ocean_current(boat_x, boat_y)
+
+        # Attempting to deduce desired speed (w/o currents) from real (w/ currents)
+
+        # a = 1
+        # b = -(2*ocean_current_x*np.sin(np.deg2rad(boat_angle)) + 2*ocean_current_y*np.cos(np.deg2rad(boat_angle)))
+        # c = ocean_current_x**2 + ocean_current_y**2 - (VEL_SCALE**2)*(boat_speed**2)
+        #
+        # boat_dx = VEL_SCALE * boat_speed * np.sin(np.pi * boat_angle / 180)
+        # boat_dy = VEL_SCALE * boat_speed * np.cos(np.pi * boat_angle / 180)
+        #
+        # ocean_current_x /= VEL_SCALE
+        # ocean_current_y /= VEL_SCALE
+        #
+        # # print(b**2 - 4*a*c)
+        # boat_speed = (-b + np.sqrt(max(b**2 - 4*a*c, 0))) / (2*a)
+        # boat_speed /= VEL_SCALE
+        #
+        # intended_boat_dx = VEL_SCALE * boat_speed * np.sin(np.pi * boat_angle / 180)
+        # intended_boat_dy = VEL_SCALE * boat_speed * np.cos(np.pi * boat_angle / 180)
+        #
+        # projection = (intended_boat_dx * boat_dx + intended_boat_dy * boat_dy) / (VEL_SCALE * boat_speed)
+        # if projection < 0:
+        #     boat_speed *= -1
+
         ocean_current_x *= 60
         ocean_current_y *= 60
+
+        # print(f"boat_speed: {boat_speed}")
+        # print(f"env.speed: {env.speed}")
 
         control = self.new_control(boat_angle, boat_ang_vel, waypoint[0], boat_x, waypoint[1], boat_y, boat_speed, ocean_current_x, ocean_current_y)
 

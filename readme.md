@@ -20,12 +20,13 @@ The simulation library is modeled after OpenAI Gym and uses Pygame. Essentially,
 
 ### Controllers
 
-| Controller          | ID                          | Description                                                                                                                            |
-|---------------------|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| KeyboardController  | `keyboard_controller`       | Move the boat with your the arrow keys of your keyboard.                                                                               |
-| ComplementaryFilter | `complementary_filter_test` | Provides an experimental implementation of a complementary filter to estimate the state of the boat. For use with `sensor` state mode. |
-| MinimalController   | `minimal_controller`        | Proof of concept controller that follows generated path. Works alright for small currents. For use with `ground_truth` state mode.     |
-
+| Controller             | ID                          | Description                                                                                                                            |
+|------------------------|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| KeyboardController     | `keyboard_controller`       | Move the boat with your the arrow keys of your keyboard.                                                                               |
+| ComplementaryFilter    | `complementary_filter_test` | Provides an experimental implementation of a complementary filter to estimate the state of the boat. For use with `sensor` state mode. |
+| MinimalController      | `minimal_controller`        | Proof of concept controller that follows generated path. Works alright for small currents. For use with `ground_truth` state mode.     |
+| ScipyOptController     | `scipy_opt`                 | Experimental controller using Scipy optimization function                                                                              |
+| ScipyLoggingController | `scipy_logging`             | Same as `ScipyOptController`, but logs parameters and intermediate values to a file and stops at the first waypoint.                   |
 
 ### State Representation
 
@@ -66,7 +67,7 @@ There are a few steps that are necessary to write custom autonomy code.
 
 **Pygame running slowly on macOS**
 
-If this problem occurs, install Pygame version 2.0.0.dev4 as follows:
+If this problem occurs, install Pygame version 2.0.0.dev6 as follows:
 
 `pip install pygame==2.0.0.dev6`
 

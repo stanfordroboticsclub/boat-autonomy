@@ -96,18 +96,19 @@ class SimpleBoatSim(object):
             self.angular_speed += action.value[0]
             self.speed += action.value[1]
 
-        intended_boat_dx = VEL_SCALE * self.speed * np.sin(np.pi * self.angle / 180)
-        intended_boat_dy = VEL_SCALE * self.speed * np.cos(np.pi * self.angle / 180)
+        # speed is in pixels/sec
+        intended_boat_dx = VEL_SCALE * self.speed * np.sin(np.pi * self.angle / 180)    # pixels/frame
+        intended_boat_dy = VEL_SCALE * self.speed * np.cos(np.pi * self.angle / 180)    # pixels/frame
 
         # Account for ocean currents
-        ocean_current_x, ocean_current_y = self.compute_ocean_current(self.boat_coords[0], self.boat_coords[1])
+        ocean_current_x, ocean_current_y = self.compute_ocean_current(self.boat_coords[0], self.boat_coords[1]) # pixels/frame
 
-        boat_dx = intended_boat_dx - ocean_current_x
-        boat_dy = intended_boat_dy - ocean_current_y
+        boat_dx = intended_boat_dx - ocean_current_x    # pixels/frame
+        boat_dy = intended_boat_dy - ocean_current_y    # pixels/frame
 
-        self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE
+        self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE  # pixels/sec
 
-        projection = (intended_boat_dx * boat_dx + intended_boat_dy * boat_dy) / VEL_SCALE * self.speed
+        projection = (intended_boat_dx * boat_dx + intended_boat_dy * boat_dy) / (VEL_SCALE * self.speed)
         if projection < 0:
             self.real_speed *= -1
 

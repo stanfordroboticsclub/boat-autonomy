@@ -16,7 +16,21 @@
 
 If you encounter any issues with running the simulation, refer to the troubleshooting section at the end of this document.
 
-The simulation library is modeled after OpenAI Gym and uses Pygame. Essentially, it provides a class SimpleBoatSim in `simple.py` that you use to simulate the environment. The way you use SimpleBoatSim is shown in `boat-test/main.py`; you need an outer loop that repeatedly calls `step(some action)` and `render()` (if you want to visualize the simulation). `step(action)` returns a state, a reward, whether the simulation terminated, and any other info. The state is encoded as a list:
+The simulation library is modeled after OpenAI Gym and uses Pygame. Essentially, it provides a class SimpleBoatSim in `simple.py` that you use to simulate the environment. The way you use SimpleBoatSim is shown in `boat-test/main.py`; you need an outer loop that repeatedly calls `step(some action)` and `render()` (if you want to visualize the simulation). `step(action)` returns a state, a reward, whether the simulation terminated, and any other info.
+
+### Controllers
+
+| Controller             | ID                          | Description                                                                                                                            |
+|------------------------|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| KeyboardController     | `keyboard_controller`       | Move the boat with your the arrow keys of your keyboard.                                                                               |
+| ComplementaryFilter    | `complementary_filter_test` | Provides an experimental implementation of a complementary filter to estimate the state of the boat. For use with `sensor` state mode. |
+| MinimalController      | `minimal_controller`        | Proof of concept controller that follows generated path. Works alright for small currents. For use with `ground_truth` state mode.     |
+| ScipyOptController     | `scipy_opt`                 | Experimental controller using Scipy optimization function                                                                              |
+| ScipyLoggingController | `scipy_logging`             | Same as `ScipyOptController`, but logs parameters and intermediate values to a file and stops at the first waypoint.                   |
+
+### State Representation
+
+The `ground_truth` state is encoded as a list:
 
 ```
 [boat x, boat y, boat speed, boat angle, boat angular velocity,
@@ -24,11 +38,12 @@ The simulation library is modeled after OpenAI Gym and uses Pygame. Essentially,
         [obstacle 1 radius, obstacle 1 x, obstacle 1 y, obstacle 1 x-velocity, obstacle 1 y-velocity],
         [obstacle 2 radius, ...],
         ...
-    ]
+    ],
+    [destination_x, destination_y]
 ]
 ```
 
-The elements of this list can be used by the robot to autonomously plan its path and avoid obstacles.
+The elements of this list can be used by the robot to autonomously plan its path and avoid obstacles. The `noisy` state mode returns the same but with some random noise added to all fields (except the destination). Currently, `sensor` state mode only returns: `[angular_velocity, heading]` to simulate the output of a gyro and magnetometer respectively. Both these readings are noisy.
 
 ### Writing autonomy code
 
@@ -42,22 +57,17 @@ There are a few steps that are necessary to write custom autonomy code.
 
 ## Todos
 
-- Detect collision of boat with obstacle and terminate simulation: `CollisionDetection` branch
-- Add currents
-- More diverse obstacles
-- Change the state representation (for example don’t give exact coordinates but distances to nearby obstacles)
-- Change what the actions do? (right now increase/decrease angular velocity + linear velocity)
-- Make all the magic constants used actually align with physical units
-- Add noise to state to simulate how estimates from sensors won’t be perfect
-- Actual autonomy using the simulation
-- Refactor code to make more clean, cut any inefficiencies, use pygame best practices
+- Refactor so that everything is in real world units (for example speed is now in pixels/sec)
+- More realistic physics (eg add drag force)
+- More work on state estimation from noisy input, integrate with minimal_controller
+- Improve minimal_controller so that it can perform well in high currents; plan angular acceleration and linear acceleration 'together' rather than separately?
 - Probably a lot more
 
 ## Troubleshooting
 
 **Pygame running slowly on macOS**
 
-If this problem occurs, install Pygame version 2.0.0.dev4 as follows:
+If this problem occurs, install Pygame version 2.0.0.dev6 as follows:
 
 `pip install pygame==2.0.0.dev6`
 

@@ -108,9 +108,10 @@ class SimpleBoatSim(object):
 
         self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE  # pixels/sec
 
-        projection = (intended_boat_dx * boat_dx + intended_boat_dy * boat_dy) / (VEL_SCALE * self.speed)
-        if projection < 0:
-            self.real_speed *= -1
+        if self.speed != 0:
+            projection = (intended_boat_dx * boat_dx + intended_boat_dy * boat_dy) / (VEL_SCALE * self.speed)
+            if projection < 0:
+                self.real_speed *= -1
 
         self.boat_coords = (self.boat_coords[0] - boat_dx,
                             self.boat_coords[1] - boat_dy)

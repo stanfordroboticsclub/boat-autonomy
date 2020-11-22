@@ -9,16 +9,17 @@ class LatLon(object):
         return f"[{self.lat}, {self.lon}]"
 
     def __getitem__(self, item):
-        if item == 0:
-            return self.lat
-        elif item == 1:
-            return self.lon
-        else:
-            raise KeyError(f"index {item} out of bounds for type LatLon")
+        # if item == 0:
+        #     return self.lat
+        # elif item == 1:
+        #     return self.lon
+        # else:
+        #     raise KeyError(f"index {item} out of bounds for type LatLon")
+        raise KeyError("Cannot index a LatLon")
 
     __repr__ = __str__
 
-    def addDist(self, dx, dy):
+    def add_dist(self, dx, dy):
         # pos is a LatLon object, dx is in meters, dy is in meters
 
         new_lat = self.lat + (dy / 110574)  # 110574 meters per deg latitude

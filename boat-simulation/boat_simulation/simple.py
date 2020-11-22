@@ -7,12 +7,14 @@ from boat_simulation.simulation_sprites import *
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 
-# change in latitude is change in y, change in longitude is change in x
-TOP_LEFT_LATLON = LatLon(7.399640, 134.457619)
-BOT_RIGHT_LATLON = TOP_LEFT_LATLON.addDist(SCREEN_WIDTH, SCREEN_HEIGHT)
 
 SCREEN_WIDTH_M = 20 # meters
 SCREEN_HEIGHT_M = (SCREEN_WIDTH_M / SCREEN_WIDTH) * SCREEN_HEIGHT # meters
+
+
+# change in latitude is change in y, change in longitude is change in x
+TOP_LEFT_LATLON = LatLon(7.399640, 134.457619)
+BOT_RIGHT_LATLON = TOP_LEFT_LATLON.add_dist(SCREEN_WIDTH_M, SCREEN_HEIGHT_M)
 
 PIXELS_PER_METER = SCREEN_WIDTH / SCREEN_WIDTH_M
 
@@ -22,6 +24,14 @@ BOAT_HEIGHT = 1 # meters
 VEL_SCALE = 1/60
 ANGLE_SCALE = 1/60
 
+def latlon_to_xy(pos):
+    left_point = LatLon(pos.lat, TOP_LEFT_LATLON.lon)
+    top_point = LatLon(TOP_LEFT_LATLON.lat, pos.lon)
+
+    x = PIXELS_PER_METER * LatLon.dist(pos, left_point)
+    y = PIXELS_PER_METER * LatLon.dist(pos, top_point)
+
+    return (x,y)
 
 class SimpleBoatSim(object):
     """boat simulation"""
@@ -36,7 +46,8 @@ class SimpleBoatSim(object):
         self.screen = None
         self.boat_sprite = BoatSprite(PIXELS_PER_METER * BOAT_WIDTH, PIXELS_PER_METER * BOAT_HEIGHT)
 
-        self.boat_coords = TOP_LEFT_LATLON.addDist(SCREEN_WIDTH_M / 2, SCREEN_HEIGHT_M / 2) # lat lon coordinates
+        self.boat_coords = TOP_LEFT_LATLON.add_dist(SCREEN_WIDTH_M / 2, SCREEN_HEIGHT_M / 2) # lat lon coordinates
+        print(f"INITIAL BOAT COORDS: {self.boat_coords}")
         # self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
 
         self.waypoints = [self.boat_coords]
@@ -109,31 +120,39 @@ class SimpleBoatSim(object):
             self.angular_speed += action.value[0]
             self.speed += action.value[1]
 
-        # speed is in pixels/sec
-        intended_boat_dx = VEL_SCALE * self.speed * np.sin(np.pi * self.angle / 180)    # pixels/frame
-        intended_boat_dy = VEL_SCALE * self.speed * np.cos(np.pi * self.angle / 180)    # pixels/frame
+        print(f"speed and angle: {self.speed}, {self.angle}")
+
+        # speed is in meters/sec
+        intended_boat_dx = VEL_SCALE * self.speed * np.sin(np.deg2rad(self.angle))    # meters/frame
+        intended_boat_dy = VEL_SCALE * self.speed * np.cos(np.deg2rad(self.angle))    # meters/frame
 
         # Account for ocean currents
-        ocean_current_x, ocean_current_y = self.compute_ocean_current(self.boat_coords.lat, self.boat_coords.lon) # pixels/frame
+        ocean_current_x, ocean_current_y = self.compute_ocean_current(self.boat_coords) # meters/frame
+        print(f"step ocean currents: {ocean_current_x}, {ocean_current_y}")
 
-        boat_dx = intended_boat_dx - ocean_current_x    # pixels/frame
-        boat_dy = intended_boat_dy - ocean_current_y    # pixels/frame
+        boat_dx = intended_boat_dx - ocean_current_x    # meters/frame
+        boat_dy = intended_boat_dy - ocean_current_y    # meters/frame
 
-        self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE  # pixels/sec
+        print(f"boat dx dy: {boat_dx}, {boat_dy}")
 
-        projection = (intended_boat_dx * boat_dx + intended_boat_dy * boat_dy) / (VEL_SCALE * self.speed)
-        if projection < 0:
-            self.real_speed *= -1
+        self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE  # meters/sec
 
-        self.boat_coords = self.boat_coords.addDist(-boat_dx, -boat_dy)
+        if self.speed != 0:
+            projection = (intended_boat_dx * boat_dx + intended_boat_dy * boat_dy) / (VEL_SCALE * self.speed)
+            if projection < 0:
+                self.real_speed *= -1
+
+        self.boat_coords = self.boat_coords.add_dist(-boat_dx, -boat_dy)
+        print(self.boat_coords)
 
         # Currents apply a torque on the boat and make it rotate
-        d_theta = ANGLE_SCALE * self.angular_speed
+        d_theta = ANGLE_SCALE * self.angular_speed # deg/frame
+        print(f"d_theta before adding current rotation: {d_theta}")
         d_theta += self.current_rotation()
-        # print(d_theta)
+        print(f"d_theta after: {d_theta}")
 
         self.angle += d_theta
-        self.real_angular_speed = d_theta
+        self.real_angular_speed = d_theta / ANGLE_SCALE
 
         # waypoint = self.waypoints[self.curr_waypoint]
         # dist = np.sqrt((self.boat_coords[0] - waypoint[0]) ** 2 + (self.boat_coords[1] - waypoint[1]) ** 2)
@@ -152,6 +171,7 @@ class SimpleBoatSim(object):
             self.obstacles.add(proposed_obstacle)
 
         # get the new state of the environment
+        state = None
         if self.state_mode == "ground_truth":
             state = self.get_ground_truth_state()
         elif self.state_mode == "noisy":
@@ -170,34 +190,64 @@ class SimpleBoatSim(object):
 
         return state, 0, end_sim, None
 
+    # a and b are vectors in meters
     def proj(self, a, b):   # Project a onto b
         coefficient = (a[0] * b[0] + a[1] * b[1]) / (b[0]**2 + b[1]**2)
         return (coefficient * b[0], coefficient * b[1])
 
     def current_rotation(self):
-        top_pos = (self.boat_coords[0] - BOAT_HEIGHT/2 * np.sin(np.pi * self.angle / 180),
-            self.boat_coords[1] - BOAT_HEIGHT/2 * np.cos(np.pi * self.angle / 180))
-        bottom_pos = (self.boat_coords[0] + BOAT_HEIGHT/2 * np.sin(np.pi * self.angle / 180),
-            self.boat_coords[1] + BOAT_HEIGHT/2 * np.cos(np.pi * self.angle / 180))
+        # top_pos = (self.boat_coords[0] - BOAT_HEIGHT/2 * np.sin(np.pi * self.angle / 180),
+        #     self.boat_coords[1] - BOAT_HEIGHT/2 * np.cos(np.pi * self.angle / 180))
 
-        top_x, top_y = self.compute_ocean_current(top_pos[0], top_pos[1])
-        bot_x, bot_y = self.compute_ocean_current(bottom_pos[0], bottom_pos[1])
+        print(self.boat_coords)
+
+        # LatLon
+        top_pos = self.boat_coords.add_dist(-BOAT_HEIGHT / 2 * np.sin(np.deg2rad(self.angle)),
+                                            -BOAT_HEIGHT / 2 * np.cos(np.deg2rad(self.angle)))
+
+        # bottom_pos = (self.boat_coords[0] + BOAT_HEIGHT/2 * np.sin(np.pi * self.angle / 180),
+        #     self.boat_coords[1] + BOAT_HEIGHT/2 * np.cos(np.pi * self.angle / 180))
+
+        # LatLon
+        bottom_pos = self.boat_coords.add_dist(BOAT_HEIGHT / 2 * np.sin(np.deg2rad(self.angle)),
+                                               BOAT_HEIGHT / 2 * np.cos(np.deg2rad(self.angle)))
+
+        print(top_pos, bottom_pos)
+
+        # current vector components in meters
+        top_x, top_y = self.compute_ocean_current(top_pos)
+        bot_x, bot_y = self.compute_ocean_current(bottom_pos)
+
+        print(top_x, top_y, bot_x, bot_y)
 
         # project <top_x, top_y> onto the 'boat vector'
-        boat_vector = (top_pos[0] - bottom_pos[0], top_pos[1] - bottom_pos[1])
+        boat_vector = (BOAT_HEIGHT * -np.sin(np.deg2rad(self.angle)), BOAT_HEIGHT * -np.cos(np.deg2rad(self.angle)))
         top_along = self.proj((top_x, top_y), boat_vector)
         bot_along = self.proj((bot_x, bot_y), boat_vector)
 
+        print(top_along, bot_along)
+
+        # vectors in meters
         top_perp = (top_x - top_along[0], top_y - top_along[1])
         bot_perp = (bot_x - bot_along[0], bot_y - bot_along[1])
 
+
+        # vector in meters
         total = ((top_perp[0] + bot_perp[0])/2, (top_perp[1] + bot_perp[1])/2)
 
-        return np.sqrt(total[0]**2 + total[1]**2)
+        # cross product between total and -boat_vector
+
+        cross_prod = -(total[0] * boat_vector[1] - total[1] * boat_vector[0])
+
+        coeff = 1
+        if cross_prod < 0:
+            coeff = -1
+
+        return coeff * np.sqrt(total[0]**2 + total[1]**2)
 
     def reset(self):
         """Resets simulation and returns initial state"""
-        self.boat_coords = TOP_LEFT_LATLON.addDist(SCREEN_WIDTH_M / 2, SCREEN_HEIGHT_M / 2) # lat lon coordinates
+        self.boat_coords = TOP_LEFT_LATLON.add_dist(SCREEN_WIDTH_M / 2, SCREEN_HEIGHT_M / 2) # lat lon coordinates
         # self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
         self.angle = 0
 
@@ -279,7 +329,9 @@ class SimpleBoatSim(object):
 
     def render_boat(self):
         self.boat_sprite.rotated_surf = pygame.transform.rotate(self.boat_sprite.surf, self.angle)
-        self.boat_sprite.rect = self.boat_sprite.rotated_surf.get_rect(center=self.boat_coords)
+        boat_center_xy = latlon_to_xy(self.boat_coords)
+        print(boat_center_xy)
+        self.boat_sprite.rect = self.boat_sprite.rotated_surf.get_rect(center=boat_center_xy)
         self.screen.blit(self.boat_sprite.rotated_surf, (self.boat_sprite.rect.x, self.boat_sprite.rect.y))
         self.boat_sprite.step()
 
@@ -297,7 +349,8 @@ class SimpleBoatSim(object):
     def render_ocean_currents(self):
         for x in range(0, SCREEN_WIDTH + 1, 100):
             for y in range(0, SCREEN_HEIGHT + 1, 100):
-                ocean_x, ocean_y = self.compute_ocean_current(x, y)
+                ocean_x, ocean_y = self.compute_ocean_current(TOP_LEFT_LATLON.add_dist((x / SCREEN_WIDTH) * SCREEN_WIDTH_M,
+                                                                                       (y/SCREEN_HEIGHT) * SCREEN_HEIGHT_M))
                 ocean_x *= 300 / self.current_level
                 ocean_y *= 300 / self.current_level
                 pygame.draw.line(self.screen, (10, 50, 255), (x, y), (x + ocean_x, y + ocean_y), 3)
@@ -353,7 +406,10 @@ class SimpleBoatSim(object):
 
         return hull
 
-    def compute_ocean_current(self, x, y):
+    # returns ocean current components in meters
+    def compute_ocean_current(self, pos):
+        x, y = latlon_to_xy(pos)
+
         ocean_current_x = self.current_level * 0.1 * np.cos(
             self.ocean_current_a * x + self.ocean_current_b * y + 15 * self.current_level * self.ocean_current_e * self.total_time)
         ocean_current_y = self.current_level * 0.1 * np.cos(

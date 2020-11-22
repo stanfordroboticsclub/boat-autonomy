@@ -23,9 +23,9 @@ class KeyboardController(BaseController):
                 if event.key == K_ESCAPE or event.type == QUIT:
                     env.close()
                 if event.key == K_UP:
-                    return Action(0, 40)
+                    return Action(0, 4)
                 if event.key == K_DOWN:
-                    return Action(0, -40)
+                    return Action(0, -4)
                 if event.key == K_LEFT:
                     return Action(1, 60)
                 if event.key == K_RIGHT:

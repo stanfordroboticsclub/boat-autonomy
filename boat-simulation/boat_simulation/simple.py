@@ -31,6 +31,14 @@ def latlon_to_xy(pos):
     x = PIXELS_PER_METER * LatLon.dist(pos, left_point)
     y = PIXELS_PER_METER * LatLon.dist(pos, top_point)
 
+    # LatLon.dist always returns positive values, so based on whether pos is
+    # above or below the top left, change sign
+
+    if pos.lat < TOP_LEFT_LATLON.lat:
+        y *= -1
+    if pos.lon < TOP_LEFT_LATLON.lon:
+        x *= -1
+
     return (x,y)
 
 class SimpleBoatSim(object):

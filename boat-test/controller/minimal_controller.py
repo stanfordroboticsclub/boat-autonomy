@@ -3,6 +3,7 @@ import pygame
 
 from controller.base_controller import BaseController
 from boat_simulation.simple import Action
+from boat_simulation.latlon import LatLon
 
 
 # Boat is modelled as a rod with two thrusters on each end
@@ -61,16 +62,17 @@ class MinimalController(BaseController):
             return Action(0, 0)
 
         boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
-        waypoint = env.waypoints[self.curr_waypoint]
-        dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
+        waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
+        dist = LatLon.dist(LatLon(boat_y, boat_x), env.waypoints[self.curr_waypoint])
 
-        if abs(dist) < 2 and abs(boat_speed) < 5:
+        if abs(dist) < 0.01 and abs(boat_speed) < 5:
             self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
             self.running_error = 0
 
         self.running_error += abs(dist)
 
         angle = np.arctan2(boat_x - waypoint[0], boat_y - waypoint[1]) * 180 / np.pi
+        print(angle)
 
         alpha = self.compute_angular_accel(boat_ang_vel, boat_angle, angle)
         accel = self.compute_accel(dist, boat_speed, boat_angle, angle)

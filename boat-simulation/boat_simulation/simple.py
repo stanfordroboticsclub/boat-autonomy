@@ -41,6 +41,11 @@ def latlon_to_xy(pos):
 
     return (x,y)
 
+def xy_to_latlon(x, y):
+    loc =  TOP_LEFT_LATLON.add_dist(x / PIXELS_PER_METER,
+                                    y / PIXELS_PER_METER)
+    return loc
+
 class SimpleBoatSim(object):
     """boat simulation"""
 
@@ -58,7 +63,9 @@ class SimpleBoatSim(object):
         print(f"INITIAL BOAT COORDS: {self.boat_coords}")
         # self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
 
-        self.waypoints = [self.boat_coords]
+        self.waypoints = []
+        self.waypoints_xy = []
+
         self.curr_waypoint = -1
 
         self.speed = 0 # m/s
@@ -78,13 +85,13 @@ class SimpleBoatSim(object):
         self.state_mode = state_mode
 
     def get_ground_truth_state(self):
-        state = [self.boat_coords.lat, self.boat_coords.lon, self.real_speed, self.angle, self.real_angular_speed  / (1/60)]
+        state = [self.boat_coords.lon, self.boat_coords.lat, self.real_speed, self.angle, self.real_angular_speed  / (1/60)]
 
         obs_states = []
         for obs in self.obstacles:
             obs_states.append([obs.radius, obs.rect.x, obs.rect.y, obs.velocity[0], obs.velocity[1]])
         state.append(obs_states)
-        # state.append(self.waypoints[self.curr_waypoint])
+        # state.append([self.waypoints[self.curr_waypoint].lat, self.waypoints[self.curr_waypoint].lon])
 
         return state
 
@@ -154,7 +161,7 @@ class SimpleBoatSim(object):
                 self.real_speed *= -1
 
         self.boat_coords = self.boat_coords.add_dist(-boat_dx, -boat_dy)
-        print(self.boat_coords)
+        # print(self.boat_coords)
 
         # Currents apply a torque on the boat and make it rotate
         d_theta = ANGLE_SCALE * self.angular_speed # deg/frame
@@ -246,6 +253,15 @@ class SimpleBoatSim(object):
 
         return coeff * np.sqrt(total[0]**2 + total[1]**2)
 
+    def create_waypoints(self):
+        self.waypoints_xy = self.generate_data(15, (BOAT_WIDTH) / 2, SCREEN_WIDTH - (BOAT_WIDTH) / 2, BOAT_HEIGHT / 2,
+                                            SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
+        self.waypoints_xy = self.compute_convex_hull(self.waypoints_xy)
+
+        self.waypoints = []
+        for w in self.waypoints_xy:
+            self.waypoints.append(xy_to_latlon(w[0], w[1]))
+
     def reset(self):
         """Resets simulation and returns initial state"""
         self.boat_coords = TOP_LEFT_LATLON.add_dist(SCREEN_WIDTH_M / 2, SCREEN_HEIGHT_M / 2) # lat lon coordinates
@@ -265,11 +281,8 @@ class SimpleBoatSim(object):
             obs.kill()
 
         self.obstacles = pygame.sprite.Group()
-        # self.waypoints = self.generate_data(15, (BOAT_WIDTH) / 2, SCREEN_WIDTH - (BOAT_WIDTH) / 2, BOAT_HEIGHT / 2,
-        #                                     SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
-        # self.waypoints.append(self.boat_coords)
 
-        # self.waypoints = self.compute_convex_hull(self.waypoints)
+        self.create_waypoints()
 
         # Ocean currents
         # Currently follows sin(ax+by), cos(cx+dy)
@@ -297,7 +310,7 @@ class SimpleBoatSim(object):
             self.screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])
 
         self.screen.fill((3, 169, 252))
-        # pygame.draw.lines(self.screen, (255, 221, 128), True, self.waypoints, 10)
+        pygame.draw.lines(self.screen, (255, 221, 128), True, self.waypoints_xy, 10)
 
         if self.current_level > 0:
             self.render_ocean_currents()
@@ -306,7 +319,7 @@ class SimpleBoatSim(object):
 
         # draw waypoint
         if self.curr_waypoint != -1:
-            pygame.draw.circle(self.screen, (207, 106, 72), self.waypoints[self.curr_waypoint], 10)
+            pygame.draw.circle(self.screen, (207, 106, 72), self.waypoints_xy[self.curr_waypoint], 10)
 
         # print current boat velocity
         font = pygame.font.SysFont(None, 24)

@@ -18,18 +18,19 @@ class KeyboardController(BaseController):
         BaseController.__init__(self, "Keyboard Controller", handle_quit=False)
 
     def select_action_from_state(self, env, state):
+        # Accelerating by specified values for one frame
         for event in pygame.event.get():
             if event.type == KEYDOWN:
                 if event.key == K_ESCAPE or event.type == QUIT:
                     env.close()
                 if event.key == K_UP:
-                    return Action(0, 1)
+                    return Action(0, 60)
                 if event.key == K_DOWN:
-                    return Action(0, -1)
+                    return Action(0, -60)
                 if event.key == K_LEFT:
-                    return Action(1, 30)
+                    return Action(1, 60*60)
                 if event.key == K_RIGHT:
-                    return Action(1, -30)
+                    return Action(1, -60*60)
             if event.type == QUIT:
                 env.close()
 

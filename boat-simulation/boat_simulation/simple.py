@@ -120,13 +120,16 @@ class SimpleBoatSim(object):
         [[obstacle 1 radius, obstacte 1 x, obstacle 1 y, obstacle 1 x velocity,
         obstacle 1 y velocity], [obstacle 2 radius, ...], ...]]
         """
+
         if action.type == 0:
-            self.speed = self.speed + action.value
+            # self.speed is in meters/sec. Input action value is accel in m/s^2
+            self.speed = self.speed + (VEL_SCALE * action.value)
         elif action.type == 1:
-            self.angular_speed += action.value
+            # self.angular_speed is in degrees/sec. Input action value is angular accel in degrees/s^2
+            self.angular_speed += (ANGLE_SCALE * action.value)
         elif action.type == 2:
-            self.angular_speed += action.value[0]
-            self.speed += action.value[1]
+            self.angular_speed += ANGLE_SCALE * action.value[0]
+            self.speed += VEL_SCALE * action.value[1]
 
         # speed is in meters/sec
         intended_boat_dx = VEL_SCALE * self.speed * np.sin(np.deg2rad(self.angle))    # meters/frame
@@ -138,7 +141,7 @@ class SimpleBoatSim(object):
         ocean_current_x /= PIXELS_PER_METER
         ocean_current_y /= PIXELS_PER_METER
 
-        print(f"current magnitude in cm/sec: {100 * np.sqrt((ocean_current_x / VEL_SCALE)**2 + (ocean_current_y / VEL_SCALE)**2)}")
+        # print(f"current magnitude in cm/sec: {100 * np.sqrt((ocean_current_x / VEL_SCALE)**2 + (ocean_current_y / VEL_SCALE)**2)}")
 
         boat_dx = intended_boat_dx - ocean_current_x    # meters/frame
         boat_dy = intended_boat_dy - ocean_current_y    # meters/frame
@@ -308,9 +311,9 @@ class SimpleBoatSim(object):
         # print current boat velocity
         font = pygame.font.SysFont(None, 24)
 
-        vel_text = font.render(f"vel: %s" % (VEL_SCALE * self.speed), True, (255, 255, 255))
-        ang_vel_text = font.render(f"ang. vel applied: %s" % (ANGLE_SCALE * self.angular_speed / (1/60)), True, (255, 255, 255))
-        ang_text = font.render(f"ang: %s" % (self.angle), True, (255, 255, 255))
+        vel_text = font.render(f"vel: %s m/sec" % round(self.speed, 5), True, (255, 255, 255))
+        ang_vel_text = font.render(f"ang. vel applied: %s deg/sec" % round(self.angular_speed, 5), True, (255, 255, 255))
+        ang_text = font.render(f"ang: %s deg" % round(self.angle, 5), True, (255, 255, 255))
 
         self.screen.blit(vel_text, (20, 20))
         self.screen.blit(ang_vel_text, (20, 50))
@@ -346,10 +349,16 @@ class SimpleBoatSim(object):
     def render_ocean_currents(self):
         for x in range(0, SCREEN_WIDTH + 1, 100):
             for y in range(0, SCREEN_HEIGHT + 1, 100):
+                # pixels per frame
                 ocean_x, ocean_y = self.compute_ocean_current(TOP_LEFT_LATLON.add_dist((x / SCREEN_WIDTH) * SCREEN_WIDTH_M,
                                                                                        (y/SCREEN_HEIGHT) * SCREEN_HEIGHT_M))
-                ocean_x *= 300 / self.current_level
-                ocean_y *= 300 / self.current_level
+                # cm/sec
+                ocean_x = 100 * ocean_x / (VEL_SCALE * PIXELS_PER_METER)
+                ocean_y = 100 * ocean_y / (VEL_SCALE * PIXELS_PER_METER)
+
+                ocean_x = 40 * ocean_x / self.current_level
+                ocean_y = 40 * ocean_y / self.current_level
+
                 pygame.draw.line(self.screen, (10, 50, 255), (x, y), (x + ocean_x, y + ocean_y), 3)
                 pygame.draw.circle(self.screen, (10, 50, 255), (x + ocean_x, y + ocean_y), 5)
 
@@ -403,14 +412,19 @@ class SimpleBoatSim(object):
 
         return hull
 
-    # returns ocean current components in meters
+    # returns ocean current components in pixels. self.current_level is in cm/sec
     def compute_ocean_current(self, pos):
         x, y = latlon_to_xy(pos)
 
-        ocean_current_x = self.current_level * 0.1 * np.cos(
-            self.ocean_current_a * x + self.ocean_current_b * y + 15 * self.current_level * self.ocean_current_e * self.total_time)
-        ocean_current_y = self.current_level * 0.1 * np.cos(
-            self.ocean_current_c * x + self.ocean_current_d * y + 15 * self.current_level * self.ocean_current_e * self.total_time)
+        pixels_per_fr_curr_level = PIXELS_PER_METER * self.current_level * VEL_SCALE / 100
+
+        multiplier = pixels_per_fr_curr_level / np.sqrt(2)
+
+        # 25 and 15 are magic constants right now
+        ocean_current_x = multiplier * np.cos(
+            self.ocean_current_a * x + self.ocean_current_b * y + 15 * (self.current_level / 10) * self.ocean_current_e * self.total_time)
+        ocean_current_y = multiplier * np.cos(
+            self.ocean_current_c * x + self.ocean_current_d * y + 15 * (self.current_level/ 10) * self.ocean_current_e * self.total_time)
 
         return ocean_current_x, ocean_current_y
 

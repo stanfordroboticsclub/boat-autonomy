@@ -17,8 +17,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Run the boat simulation.')
     parser.add_argument('--controller', '-c', help="Choose the name of the controller to use",
                         choices=controller_arg_names, default=controller_arg_names[0])
-    parser.add_argument('--current_level', '-cl', help="Choose the intensity of currents in the simulation",
-                        default=3)
+    parser.add_argument('--current_level', '-cl', help="Choose the intensity of currents in the simulation in cm/s",
+                        default=50)
     parser.add_argument('--max_obstacles', '-mo', help="Choose the maximum number of obstacles on screen at any time",
                         default=10)
     parser.add_argument('--state_mode', '-sm', help="Choose the representation of the simulation state available to the boat",

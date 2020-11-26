@@ -25,7 +25,7 @@ The simulation library is modeled after OpenAI Gym and uses Pygame. Essentially,
 | KeyboardController     | `keyboard_controller`       | Move the boat with your the arrow keys of your keyboard.                                                                               |
 | ComplementaryFilter    | `complementary_filter_test` | Provides an experimental implementation of a complementary filter to estimate the state of the boat. For use with `sensor` state mode. |
 | MinimalController      | `minimal_controller`        | Proof of concept controller that follows generated path. Works alright for small currents. For use with `ground_truth` state mode.     |
-| ScipyOptController     | `scipy_opt`                 | Experimental controller using Scipy optimization function                                                                              |
+| ScipyOptController     | `scipy_opt`                 | Experimental controller using SciPy optimization library to optimize objective function.                                               |
 | ScipyLoggingController | `scipy_logging`             | Same as `ScipyOptController`, but logs parameters and intermediate values to a file and stops at the first waypoint.                   |
 
 ### State Representation
@@ -38,8 +38,7 @@ The `ground_truth` state is encoded as a list:
         [obstacle 1 radius, obstacle 1 x, obstacle 1 y, obstacle 1 x-velocity, obstacle 1 y-velocity],
         [obstacle 2 radius, ...],
         ...
-    ],
-    [destination_x, destination_y]
+    ]
 ]
 ```
 
@@ -57,11 +56,12 @@ There are a few steps that are necessary to write custom autonomy code.
 
 ## Todos
 
-- Refactor so that everything is in real world units (for example speed is now in pixels/sec)
-- More realistic physics (eg add drag force)
-- More work on state estimation from noisy input, integrate with minimal_controller
-- Improve minimal_controller so that it can perform well in high currents; plan angular acceleration and linear acceleration 'together' rather than separately?
-- Probably a lot more
+- Refactor so that everything is in real world units (mostly done, need to integrate with all controllers)
+- More realistic physics (eg add drag force, accelerations aren't applied instantaneously)
+- More work on state estimation from noisy input, integrate with controllers
+- Add boundaries to all controllers so that the boat doesn't go off very far from the screen
+- Local map on main screen + minimap on top right showing global position so that the boat isn't extremely tiny on the main screen
+- Change controllers so that they can also turn to a target heading
 
 ## Troubleshooting
 

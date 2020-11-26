@@ -4,6 +4,7 @@ import numpy as np
 from boat_simulation.latlon import LatLon
 from boat_simulation.simulation_sprites import *
 
+
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 
@@ -85,7 +86,7 @@ class SimpleBoatSim(object):
         self.state_mode = state_mode
 
     def get_ground_truth_state(self):
-        state = [self.boat_coords.lon, self.boat_coords.lat, self.real_speed, self.angle, self.real_angular_speed  / (1/60)]
+        state = [self.boat_coords.lon, self.boat_coords.lat, self.real_speed, self.angle, self.real_angular_speed]
 
         obs_states = []
         for obs in self.obstacles:

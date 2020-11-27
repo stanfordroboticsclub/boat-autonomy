@@ -19,7 +19,7 @@ curr_idx = 0
 
 m = ScipyLoggingController(False)
 
-multiplier = 100
+multiplier = 1
 num_samples = 10
 
 x = np.arange(-multiplier * m.a_max, multiplier * m.a_max, 2*multiplier * m.a_max / num_samples)
@@ -49,7 +49,7 @@ def animate(fn, p):
 
     ax.clear()
 
-    ax.set_zlim3d([0.0, 2.5e5])
+    # ax.set_zlim3d([0.0, 2.5e5])
     ax.set_xlabel('linear accel')
     ax.set_ylabel('angular accel')
     ax.set_zlabel(r'distance value')

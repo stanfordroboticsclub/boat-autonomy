@@ -144,10 +144,11 @@ class SimpleBoatSim(object):
         intended_boat_dy = VEL_SCALE * self.speed * np.cos(np.deg2rad(self.angle))    # meters/frame
 
         # Account for ocean currents
-        ocean_current_x, ocean_current_y = self.compute_ocean_current(self.boat_coords) # pixels/frame
+        ocean_current_x, ocean_current_y = self.compute_ocean_current(self.boat_coords) # meters/sec
 
-        ocean_current_x /= PIXELS_PER_METER
-        ocean_current_y /= PIXELS_PER_METER
+        # make currents meters/frame
+        ocean_current_x *= VEL_SCALE
+        ocean_current_y *= VEL_SCALE
 
         # print(f"current magnitude in cm/sec: {100 * np.sqrt((ocean_current_x / VEL_SCALE)**2 + (ocean_current_y / VEL_SCALE)**2)}")
 
@@ -170,12 +171,6 @@ class SimpleBoatSim(object):
 
         self.angle += d_theta
         self.real_angular_speed = d_theta / ANGLE_SCALE
-
-        # waypoint = self.waypoints[self.curr_waypoint]
-        # dist = np.sqrt((self.boat_coords[0] - waypoint[0]) ** 2 + (self.boat_coords[1] - waypoint[1]) ** 2)
-
-        # if dist < 2:
-        #     self.curr_waypoint = (self.curr_waypoint + 1) % len(self.waypoints)
 
         if np.random.uniform() < self.obs_chance and len(self.obstacles) < self.max_obstacles:
             while True:
@@ -426,7 +421,7 @@ class SimpleBoatSim(object):
 
         return hull
 
-    # returns ocean current components in pixels. self.current_level is in cm/sec
+    # returns ocean current components in m/sec. self.current_level is in cm/sec
     def compute_ocean_current(self, pos):
         x, y = latlon_to_xy(pos)
 
@@ -439,6 +434,9 @@ class SimpleBoatSim(object):
             self.ocean_current_a * x + self.ocean_current_b * y + 15 * (self.current_level / 10) * self.ocean_current_e * self.total_time)
         ocean_current_y = multiplier * np.cos(
             self.ocean_current_c * x + self.ocean_current_d * y + 15 * (self.current_level/ 10) * self.ocean_current_e * self.total_time)
+
+        ocean_current_x /= (PIXELS_PER_METER * VEL_SCALE)
+        ocean_current_y /= (PIXELS_PER_METER * VEL_SCALE)
 
         return ocean_current_x, ocean_current_y
 

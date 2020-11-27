@@ -24,11 +24,17 @@ class ScipyOptController(BaseController):
         self.running_error = 0
         self.i_constant = 5e-6
 
+        self.last_dist = None
+
+        self.accumulator = 0
+        self.a_constant = 5e-6
+        self.a_rate = 50
+
         self.curr_waypoint = 0
 
 
     def compute_objective(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
-        t = max(t - self.i_constant * self.running_error, 1e-3)
+        # t = max(t - self.i_constant * self.running_error, 1e-3)
 
         a = input[0]
         alpha = input[1]
@@ -50,7 +56,7 @@ class ScipyOptController(BaseController):
         return (dx_total) ** 2 + (dy_total) ** 2
 
 
-    def new_control(self, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy):
+    def new_control(self, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, use_accumulator=True):
         obj_fun = self.compute_objective
 
         dist = np.sqrt((x_curr - x_targ) ** 2 + (y_curr - y_targ) ** 2)
@@ -61,15 +67,27 @@ class ScipyOptController(BaseController):
 
         bounds = Bounds([-self.a_max, -self.max_alpha_mag], [self.a_max, self.max_alpha_mag])
 
+        t = 1
+        delta = 0
+        penalty = self.i_constant * self.running_error
+
+        if use_accumulator and self.last_dist is not None:
+            delta = np.abs(dist) - np.abs(self.last_dist)
+            self.accumulator += np.exp(-10 * delta**2) * self.a_rate
+
+            penalty = self.a_constant * self.accumulator
+
+        t = max(t - penalty, 1e-3)
+
         solved = minimize(obj_fun, np.array([accel_init, alpha_init]),
-            (theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy), method='trust-constr', bounds=bounds,
+            (theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t), method='trust-constr', bounds=bounds,
             options={'maxiter': 3})
 
         x = solved.x
 
         solved = [np.clip(x[0], -self.a_max, self.a_max), np.clip(x[1], -self.max_alpha_mag, self.max_alpha_mag)]
 
-        print(f"dist: {round(dist, 5)},  curr_vel: {round(v_i, 5)}, accel: {round(solved[0], 5)}, alpha: {round(solved[1], 5)}, running_error: {round(self.running_error, 5)}")
+        print(f"dist: {round(dist, 5)},  curr_vel: {round(v_i, 5)}, accel: {round(solved[0], 5)}, alpha: {round(solved[1], 5)}, t: {round(t, 5)}, delta: {round(delta, 5)}")
 
         return solved  # (accel, alpha)
 
@@ -99,37 +117,7 @@ class ScipyOptController(BaseController):
         return accel
 
 
-    # uses ground truth state
-    def select_action_from_state(self, env, state):
-        if self.in_sim:
-            env.set_waypoint(self.curr_waypoint)
-
-        if env.total_time < 1:
-            return Action(0, 0)
-
-        boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
-        boat_speed = env.speed
-
-
-        # boat_dx = intended_boat_dx - ocean_current_x
-        # boat_dy = intended_boat_dy - ocean_current_y
-        #
-        # self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE
-
-        waypoint = env.waypoints[self.curr_waypoint]
-
-        dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
-
-        if abs(dist) < 2:
-            self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
-            self.running_error = 0
-
-        self.running_error += abs(dist)
-
-        ocean_current_x, ocean_current_y = env.compute_ocean_current(boat_x, boat_y)
-
-        # Attempting to deduce desired speed (w/o currents) from real (w/ currents)
-
+    def estimate_currents(self, env, state):
         # a = 1
         # b = -(2*ocean_current_x*np.sin(np.deg2rad(boat_angle)) + 2*ocean_current_y*np.cos(np.deg2rad(boat_angle)))
         # c = ocean_current_x**2 + ocean_current_y**2 - (VEL_SCALE**2)*(boat_speed**2)
@@ -151,12 +139,41 @@ class ScipyOptController(BaseController):
         # if projection < 0:
         #     boat_speed *= -1
 
+        boat_x, boat_y = state[0], state[1]
+        ocean_current_x, ocean_current_y = env.compute_ocean_current(boat_x, boat_y)
+
         ocean_current_x *= 60
         ocean_current_y *= 60
 
-        # print(f"boat_speed: {boat_speed}")
-        # print(f"env.speed: {env.speed}")
+        return ocean_current_x, ocean_current_y
 
-        control = self.new_control(boat_angle, boat_ang_vel, waypoint[0], boat_x, waypoint[1], boat_y, boat_speed, ocean_current_x, ocean_current_y)
+
+    # uses ground truth state
+    def select_action_from_state(self, env, state):
+        if self.in_sim:
+            env.set_waypoint(self.curr_waypoint)
+
+        if env.total_time < 1:
+            return Action(0, 0)
+
+        boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
+        boat_speed = env.speed
+
+        waypoint = env.waypoints[self.curr_waypoint]
+
+        dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
+
+        if abs(dist) < 2:
+            self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
+            self.running_error = 0
+            self.accumulator = 0
+            self.last_dist = 0
+
+        self.running_error += abs(dist)
+
+        ocean_current_x, ocean_current_y = self.estimate_currents(env, state)
+
+        control = self.new_control(boat_angle, boat_ang_vel, waypoint[0], boat_x, waypoint[1], boat_y, boat_speed, ocean_current_x, ocean_current_y, True)
+        self.last_dist = dist
 
         return Action(2, [control[1], control[0]])

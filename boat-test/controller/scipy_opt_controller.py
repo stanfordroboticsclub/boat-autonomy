@@ -114,16 +114,16 @@ class ScipyOptController(BaseController):
 
         # handle x first
         def delta_x(time):
-            return -(v_i*time + 0.5 * a * time**2) * np.sin(np.deg2rad(theta(time)))
+            return -(v_i + a * time) * np.sin(np.deg2rad(theta(time))) - v_cx
 
         delta_x_tot = integrate.quad(delta_x, 0, t)[0]
 
         def delta_y(time):
-            return -(v_i*time + 0.5 * a * time**2) * np.cos(np.deg2rad(theta(time)))
+            return -(v_i + a * time) * np.cos(np.deg2rad(theta(time))) - v_cy
 
         delta_y_tot = integrate.quad(delta_y, 0, t)[0]
 
-        return LatLon.dist(LatLon(y_curr, x_curr).add_dist(delta_x_tot, delta_y_tot), LatLon(y_targ, x_targ)) + 5e-2*np.abs(ang_vel + alpha) + 5e-2*np.abs(v_i + a)
+        return LatLon.dist(LatLon(y_curr, x_curr).add_dist(delta_x_tot, delta_y_tot), LatLon(y_targ, x_targ))
 
         # # handle x first
         # d_vcx = -.5 * v_cx * t**2
@@ -224,7 +224,7 @@ class ScipyOptController(BaseController):
 
         solved = minimize(obj_fun, np.array([accel_init, alpha_init]),
             (theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t), method='trust-constr', bounds=bounds,
-            options={'maxiter': 3})
+            options={'maxiter': 5})
 
         x = solved.x
 

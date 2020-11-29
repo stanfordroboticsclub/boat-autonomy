@@ -3,7 +3,7 @@ import pygame
 from scipy.optimize import minimize, Bounds
 
 from controller.base_controller import BaseController
-from boat_simulation.simple import Action
+from boat_simulation.simple import Action, latlon_to_xy
 from boat_simulation.latlon import LatLon
 
 VEL_SCALE = 1/60
@@ -23,6 +23,9 @@ class ScipyOptController(BaseController):
         self.a_max = 2 * self.f_max / self.boat_mass
         self.max_alpha_mag = 6 * self.f_max / (self.boat_mass * self.boat_width)
 
+        print(f"A MAX: {self.a_max}")
+        print(f"ALPHA MAX: {self.max_alpha_mag}")
+
         self.accelerated = 50
         self.running_error = 0
         self.i_constant = 5e-6
@@ -30,14 +33,17 @@ class ScipyOptController(BaseController):
         self.last_dist = None
 
         self.accumulator = 0
-        self.a_constant = 1e-5
+        self.a_constant = 5e-6
         self.a_rate = 50
 
         self.curr_waypoint = 0
 
+        self.last_accel = None
+        self.last_alpha = None
 
-    def compute_objective(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
-        # t = max(t - self.i_constant * self.running_error, 1e-3)
+
+    def compute_objective_logging(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+        t = max(t - self.i_constant * self.running_error, 1e-3)
 
         a = input[0]
         alpha = input[1]
@@ -71,14 +77,88 @@ class ScipyOptController(BaseController):
         return (dx_total) ** 2 + (dy_total) ** 2
 
 
+    def compute_objective_latlon(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+        a = input[0]
+        alpha = input[1]
+
+        theta = theta_i + ang_vel * t + .5 * alpha * (t**2)
+
+        # delta_x = x_targ - x_curr
+        dx_vel = -(v_i * t + .5 * a *( t ** 2)) * np.sin(np.deg2rad(theta))
+        dx_curr = -v_cx * t
+
+        dx_total = dx_vel - dx_curr
+
+        # delta_y = y_targ - y_curr
+        dy_vel = -(v_i * t + .5 * a * (t ** 2)) * np.cos(np.deg2rad(theta))
+        dy_curr = -v_cy * t
+
+        dy_total = dy_vel - dy_curr
+
+        out = LatLon.dist(LatLon(y_targ, x_targ), LatLon(y_curr, x_curr).add_dist(dx_total, dy_total))
+
+        return out
+
+
+    def compute_objective_integrated(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+        a = input[0]
+        alpha = input[1]
+
+        theta = theta_i + ang_vel * t + .5 * alpha * (t**2)
+        theta_deg = np.deg2rad(theta)
+
+        # handle x first
+        d_vcx = -.5 * v_cx * t**2
+
+        # v_i*t term of integral
+        x_vit_first = 0.5 * v_i * np.sin(theta_deg) * t**2
+        x_vit_second = (v_i * ang_vel * np.cos(theta_deg) * t**3) / 3
+        x_vit_third = (0.5 * (-(ang_vel**2)*np.sin(theta_deg) + alpha * np.cos(theta_deg)) * v_i * t**4) / 4
+        x_vit_tot = -x_vit_first - x_vit_second - x_vit_third
+
+        # .5 a t^2 term of integral
+        x_hats_first = (0.5 * a * np.sin(theta_deg) * t**3) / 3
+        x_hats_second = (0.5 * a * ang_vel * np.cos(theta_deg) * t**4) / 4
+        x_hats_tot = -x_hats_first - x_hats_second
+
+        delta_x = d_vcx + x_vit_tot + x_hats_tot
+
+        # handle y
+        d_vcy = -.5 * v_cy * t**2
+
+        y_vit_first = 0.5 * v_i * np.cos(theta_deg) * t**2
+        y_vit_second = -(v_i * ang_vel * np.sin(theta_deg) * t**3) / 3
+        y_vit_third = (0.5 * (-(ang_vel**2)*np.cos(theta_deg) - alpha * np.sin(theta_deg)) * v_i * t**4) / 4
+        y_vit_tot = -y_vit_first - y_vit_second - y_vit_third
+
+        y_hats_first = (0.5 * a * np.cos(theta_deg) * t**3) / 3
+        y_hats_second = -(0.5 * a * ang_vel * np.sin(theta_deg) * t**4) / 4
+        y_hats_tot = -y_hats_first - y_hats_second
+
+        delta_y = d_vcy + y_vit_tot + y_hats_tot
+
+        return LatLon.dist(LatLon(y_curr, x_curr).add_dist(delta_x, delta_y), LatLon(y_targ, x_targ))
+
+
+    def compute_objective(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+        return self.compute_objective_logging(input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t)
+
+
     def new_control(self, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, use_accumulator=True):
         obj_fun = self.compute_objective
 
         dist = LatLon.dist(LatLon(y_curr, x_curr), LatLon(y_targ, x_targ))
         angle = np.arctan2(x_curr - x_targ, y_curr - y_targ) * 180 / np.pi
 
-        alpha_init = self.compute_angular_accel(ang_vel, theta_i, angle)
-        accel_init = self.compute_accel(dist, v_i, theta_i, angle)
+        # alpha_init = self.compute_angular_accel(ang_vel, theta_i, angle)
+        # accel_init = self.compute_accel(dist, v_i, theta_i, angle)
+
+        if self.last_accel is None:
+            alpha_init = self.compute_angular_accel(ang_vel, theta_i, angle)
+            accel_init = self.compute_accel(dist, v_i, theta_i, angle)
+        else:
+            alpha_init = self.last_alpha
+            accel_init = self.last_accel
 
         bounds = Bounds([-self.a_max, -self.max_alpha_mag], [self.a_max, self.max_alpha_mag])
 
@@ -88,7 +168,7 @@ class ScipyOptController(BaseController):
 
         if use_accumulator and self.last_dist is not None:
             delta = np.abs(dist) - np.abs(self.last_dist)
-            self.accumulator += np.exp(-10 * delta**2) * self.a_rate
+            self.accumulator += np.exp(-100 * delta**2) * self.a_rate
 
             penalty = self.a_constant * self.accumulator
 
@@ -100,9 +180,11 @@ class ScipyOptController(BaseController):
 
         x = solved.x
 
+        print(f"dist: {round(dist, 5)},  curr_vel: {round(v_i, 5)}, accel: {round(x[0], 5)}, alpha: {round(x[1], 5)}, t: {round(t, 5)}, delta: {round(delta, 5)}")
+
         solved = [np.clip(x[0], -self.a_max, self.a_max), np.clip(x[1], -self.max_alpha_mag, self.max_alpha_mag)]
 
-        print(f"dist: {round(dist, 5)},  curr_vel: {round(v_i, 5)}, accel: {round(solved[0], 5)}, alpha: {round(solved[1], 5)}, t: {round(t, 5)}, delta: {round(delta, 5)}")
+        # print(f"dist: {round(dist, 5)},  curr_vel: {round(v_i, 5)}, accel: {round(solved[0], 5)}, alpha: {round(solved[1], 5)}, t: {round(t, 5)}, delta: {round(delta, 5)}")
 
         return solved  # (accel, alpha)
 
@@ -186,5 +268,8 @@ class ScipyOptController(BaseController):
 
         control = self.new_control(boat_angle, boat_ang_vel, waypoint[0], boat_x, waypoint[1], boat_y, boat_speed, ocean_current_x, ocean_current_y, True)
         self.last_dist = dist
+
+        self.last_alpha = control[1]
+        self.last_accel = control[0]
 
         return Action(2, [control[1], control[0]])

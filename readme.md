@@ -24,6 +24,7 @@ The simulation library is modeled after OpenAI Gym and uses Pygame. Essentially,
 |------------------------|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
 | KeyboardController     | `keyboard_controller`       | Move the boat with your the arrow keys of your keyboard.                                                                               |
 | ComplementaryFilter    | `complementary_filter_test` | Provides an experimental implementation of a complementary filter to estimate the state of the boat. For use with `sensor` state mode. |
+| SLSQPController        | `slsqp`                     | Uses SLSQP to optimize distance from destination after a dynamically adjusted window. For use with `ground_truth` state mode.          |
 | MinimalController      | `minimal_controller`        | Proof of concept controller that follows generated path. Works alright for small currents. For use with `ground_truth` state mode.     |
 | ScipyOptController     | `scipy_opt`                 | Experimental controller using SciPy optimization library to optimize objective function.                                               |
 | ScipyLoggingController | `scipy_logging`             | Same as `ScipyOptController`, but logs parameters and intermediate values to a file and stops at the first waypoint.                   |

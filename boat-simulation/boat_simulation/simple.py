@@ -358,15 +358,12 @@ class SimpleBoatSim(object):
     def render_ocean_currents(self):
         for x in range(0, SCREEN_WIDTH + 1, 100):
             for y in range(0, SCREEN_HEIGHT + 1, 100):
-                # pixels per frame
+                # m/sec
                 ocean_x, ocean_y = self.compute_ocean_current(TOP_LEFT_LATLON.add_dist((x / SCREEN_WIDTH) * SCREEN_WIDTH_M,
                                                                                        (y/SCREEN_HEIGHT) * SCREEN_HEIGHT_M))
-                # cm/sec
-                ocean_x = 100 * ocean_x / (VEL_SCALE * PIXELS_PER_METER)
-                ocean_y = 100 * ocean_y / (VEL_SCALE * PIXELS_PER_METER)
 
-                ocean_x = 40 * ocean_x / self.current_level
-                ocean_y = 40 * ocean_y / self.current_level
+                ocean_x = 100 * 45 * ocean_x / self.current_level
+                ocean_y = 100 * 45 * ocean_y / self.current_level
 
                 pygame.draw.line(self.screen, (10, 50, 255), (x, y), (x + ocean_x, y + ocean_y), 3)
                 pygame.draw.circle(self.screen, (10, 50, 255), (x + ocean_x, y + ocean_y), 5)

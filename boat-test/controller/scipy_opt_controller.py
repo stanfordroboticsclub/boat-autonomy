@@ -97,7 +97,7 @@ class ScipyOptController(BaseController):
 
         dy_total = dy_vel - dy_curr
 
-        out = LatLon.dist(LatLon(y_targ, x_targ), LatLon(y_curr, x_curr).add_dist(dx_total, dy_total))
+        out = LatLon.dist(LatLon(y_targ, x_targ), LatLon(y_curr, x_curr).add_dist(dx_total, dy_total)) ** 2
 
         return out
 
@@ -209,7 +209,7 @@ class ScipyOptController(BaseController):
     def compute_objective(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
         params = (input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t)
         # return self.compute_objective_logging(*params)
-        return self.compute_objective_simple(*params)
+        return self.compute_objective_logging(*params)
 
 
     def new_control(self, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, use_accumulator=True):

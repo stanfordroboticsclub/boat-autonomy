@@ -6,6 +6,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.animation as animation
 
 from controller.scipy_logging_controller import ScipyLoggingController
+from controller.new_controller import NewController
 
 
 params = (174.30346377634683, 40.96843387500243, 45.64218849294368, 33.43573042084108, 218.70396989880902, 210.6705153396057, 30.970283478964255, -6.0602203884899914, -16.805711037437604)
@@ -19,7 +20,7 @@ curr_idx = 0
 
 m = ScipyLoggingController(False)
 
-multiplier = 1
+multiplier = 2
 num_samples = 10
 
 x = np.arange(-multiplier * m.a_max, multiplier * m.a_max, 2*multiplier * m.a_max / num_samples)

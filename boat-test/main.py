@@ -7,12 +7,13 @@ from controller.minimal_controller import MinimalController
 from controller.scipy_opt_controller import ScipyOptController
 from controller.scipy_logging_controller import ScipyLoggingController
 from controller.xy_controller import XYController
+from controller.slsqp_controller import SLSQPController
 
 import argparse
 
 
 def parse_args():
-    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller", "scipy_logging", "scipy_opt", "xy"]
+    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller", "scipy_logging", "scipy_opt", "xy", "slsqp"]
     state_modes = ["ground_truth", "noisy", "sensor"]
 
     parser = argparse.ArgumentParser(description='Run the boat simulation.')
@@ -50,6 +51,8 @@ def main():
         controller = ScipyOptController()
     elif args.controller == "xy":
         controller = XYController()
+    elif args.controller == "slsqp":
+        controller = SLSQPController()
 
     print("Instantiated controller:", controller.name)
 

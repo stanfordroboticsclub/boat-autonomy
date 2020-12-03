@@ -9,7 +9,7 @@ from boat_simulation.simple import Action, latlon_to_xy, PIXELS_PER_METER
 from boat_simulation.latlon import LatLon
 
 VEL_SCALE = 1/60
-PIXELS_PER_METER = 40
+PIXELS_PER_METER = 30
 
 # Boat is modelled as a rod with two thrusters on each end
 class XYController(BaseController):

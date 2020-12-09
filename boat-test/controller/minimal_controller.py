@@ -3,6 +3,7 @@ import pygame
 
 from controller.base_controller import BaseController
 from boat_simulation.simple import Action
+from boat_simulation.latlon import LatLon
 
 
 # Boat is modelled as a rod with two thrusters on each end
@@ -11,16 +12,18 @@ class MinimalController(BaseController):
         BaseController.__init__(self, "Minimal controller for autonomy")
         self.in_sim = in_sim
 
-        self.f_max = 10
+        # 5 kg f ~ 50 N
+        # https://bluerobotics.com/store/thrusters/t100-t200-thrusters/t200-thruster/
+        self.f_max = 50
         self.boat_mass = 5
         self.boat_width = 1
 
         self.a_max = 2 * self.f_max / self.boat_mass
-        self.max_alpha_mag = 3 * self.f_max / (self.boat_mass * self.boat_width)
+        self.max_alpha_mag = 6 * self.f_max / (self.boat_mass * self.boat_width)
 
         self.accelerated = 50
         self.running_error = 0
-        self.i_constant = 5e-6
+        self.i_constant = 4e-6
 
         self.curr_waypoint = 0
 
@@ -35,7 +38,7 @@ class MinimalController(BaseController):
 
 
     def compute_accel(self, dist, curr_vel, curr_heading, target_heading, max_t=1):
-        if dist < 1:
+        if dist < 0.01:
             return -curr_vel
 
         max_t = max(max_t - self.i_constant * self.running_error, 1e-3)
@@ -61,10 +64,10 @@ class MinimalController(BaseController):
             return Action(0, 0)
 
         boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
-        waypoint = env.waypoints[self.curr_waypoint]
-        dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
+        waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
+        dist = LatLon.dist(env.boat_coords, env.waypoints[self.curr_waypoint])
 
-        if abs(dist) < 2 and abs(boat_speed) < 5:
+        if abs(dist) < 0.05 and abs(boat_speed) < 5:
             self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
             self.running_error = 0
 

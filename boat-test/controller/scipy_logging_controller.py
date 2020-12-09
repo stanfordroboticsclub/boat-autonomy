@@ -7,6 +7,7 @@ from scipy.optimize import minimize, Bounds
 
 from controller.base_controller import BaseController
 from boat_simulation.simple import Action
+from boat_simulation.latlon import LatLon
 
 
 # Boat is modelled as a rod with two thrusters on each end
@@ -15,12 +16,14 @@ class ScipyLoggingController(BaseController):
         BaseController.__init__(self, "Minimal controller for autonomy")
         self.in_sim = in_sim
 
-        self.f_max = 5
+        # 5 kg f ~ 50 N
+        # https://bluerobotics.com/store/thrusters/t100-t200-thrusters/t200-thruster/
+        self.f_max = 50
         self.boat_mass = 5
         self.boat_width = 1
 
         self.a_max = 2 * self.f_max / self.boat_mass
-        self.max_alpha_mag = 3 * self.f_max / (self.boat_mass * self.boat_width)
+        self.max_alpha_mag = 6 * self.f_max / (self.boat_mass * self.boat_width)
 
         self.accelerated = 50
         self.running_error = 0
@@ -31,20 +34,32 @@ class ScipyLoggingController(BaseController):
 
 
     def compute_objective(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
-        t = max(t - self.i_constant * self.running_error, 1e-3)
+        # t = max(t - self.i_constant * self.running_error, 1e-3)
 
         a = input[0]
         alpha = input[1]
 
         theta = theta_i + ang_vel * t + .5 * alpha * (t**2)
 
-        delta_x = x_targ - x_curr
+        # delta_x = x_targ - x_curr
+
+        delta_x = LatLon.dist(LatLon(y_curr, x_curr), LatLon(y_curr, x_targ))
+
+        if x_targ < x_curr:
+            delta_x *= -1
+
         dx_vel = (v_i * t + .5 * a *( t ** 2)) * np.sin(np.deg2rad(theta))
         dx_curr = v_cx * t
 
         dx_total = delta_x + dx_vel - dx_curr
 
-        delta_y = y_targ - y_curr
+        # delta_y = y_targ - y_curr
+
+        delta_y = LatLon.dist(LatLon(y_curr, x_curr), LatLon(y_targ, x_curr))
+
+        if y_targ < y_curr:
+            delta_y *= -1
+
         dy_vel = (v_i * t + .5 * a * (t ** 2)) * np.cos(np.deg2rad(theta))
         dy_curr = v_cy * t
 
@@ -57,7 +72,7 @@ class ScipyLoggingController(BaseController):
         # obj_fun = self.compute_objective_func(theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy)
         obj_fun = self.compute_objective
 
-        dist = np.sqrt((x_curr - x_targ) ** 2 + (y_curr - y_targ) ** 2)
+        dist = LatLon.dist(LatLon(y_curr, x_curr), LatLon(y_targ, x_targ))
         angle = np.arctan2(x_curr - x_targ, y_curr - y_targ) * 180 / np.pi
 
         alpha_init = self.compute_angular_accel(ang_vel, theta_i, angle)
@@ -124,15 +139,15 @@ class ScipyLoggingController(BaseController):
             env.set_waypoint(self.curr_waypoint)
 
         if env.total_time < 1:
-            # return Action(0, self.a_max)
             return Action(0, 0)
 
         boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
-        waypoint = env.waypoints[self.curr_waypoint]
+        boat_speed = env.speed
 
-        dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
-        #
-        if abs(dist) < 2:
+        waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
+        dist = LatLon.dist(env.boat_coords, env.waypoints[self.curr_waypoint])
+
+        if abs(dist) < 0.25:
             self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
             self.running_error = 0
             self.df.to_csv("logs/log.csv")
@@ -147,9 +162,8 @@ class ScipyLoggingController(BaseController):
 
         # theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy
 
-        ocean_current_x, ocean_current_y = env.compute_ocean_current(boat_x, boat_y)
-        ocean_current_x *= 60
-        ocean_current_y *= 60
+        boat_lon, boat_lat = state[0], state[1]
+        ocean_current_x, ocean_current_y = env.compute_ocean_current(LatLon(boat_y, boat_x))
 
         # ocean_current_x = 0
         # ocean_current_y = 0

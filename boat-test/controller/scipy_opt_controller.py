@@ -1,9 +1,12 @@
 import numpy as np
 import pygame
+
 from scipy.optimize import minimize, Bounds
+import scipy.integrate as integrate
 
 from controller.base_controller import BaseController
-from boat_simulation.simple import Action
+from boat_simulation.simple import Action, latlon_to_xy, PIXELS_PER_METER
+from boat_simulation.latlon import LatLon
 
 VEL_SCALE = 1/60
 
@@ -13,21 +16,35 @@ class ScipyOptController(BaseController):
         BaseController.__init__(self, "Minimal controller for autonomy")
         self.in_sim = in_sim
 
-        self.f_max = 5
+        # 5 kg f ~ 50 N
+        # https://bluerobotics.com/store/thrusters/t100-t200-thrusters/t200-thruster/
+        self.f_max = 50
         self.boat_mass = 5
-        self.boat_width = 1
+        self.boat_width = 0.5
 
         self.a_max = 2 * self.f_max / self.boat_mass
-        self.max_alpha_mag = 3 * self.f_max / (self.boat_mass * self.boat_width)
+        self.max_alpha_mag = 6 * self.f_max / (self.boat_mass * self.boat_width)
+
+        print(f"A MAX: {self.a_max}")
+        print(f"ALPHA MAX: {self.max_alpha_mag}")
 
         self.accelerated = 50
         self.running_error = 0
         self.i_constant = 5e-6
 
+        self.last_dist = None
+
+        self.accumulator = 0
+        self.a_constant = 5e-6
+        self.a_rate = 50
+
         self.curr_waypoint = 0
 
+        self.last_accel = None
+        self.last_alpha = None
 
-    def compute_objective(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+
+    def compute_objective_logging(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
         t = max(t - self.i_constant * self.running_error, 1e-3)
 
         a = input[0]
@@ -35,13 +52,25 @@ class ScipyOptController(BaseController):
 
         theta = theta_i + ang_vel * t + .5 * alpha * (t**2)
 
-        delta_x = x_targ - x_curr
+        # delta_x = x_targ - x_curr
+
+        delta_x = LatLon.dist(LatLon(y_curr, x_curr), LatLon(y_curr, x_targ))
+
+        if x_targ < x_curr:
+            delta_x *= -1
+
         dx_vel = (v_i * t + .5 * a *( t ** 2)) * np.sin(np.deg2rad(theta))
         dx_curr = v_cx * t
 
         dx_total = delta_x + dx_vel - dx_curr
 
-        delta_y = y_targ - y_curr
+        # delta_y = y_targ - y_curr
+
+        delta_y = LatLon.dist(LatLon(y_curr, x_curr), LatLon(y_targ, x_curr))
+
+        if y_targ < y_curr:
+            delta_y *= -1
+
         dy_vel = (v_i * t + .5 * a * (t ** 2)) * np.cos(np.deg2rad(theta))
         dy_curr = v_cy * t
 
@@ -50,27 +79,183 @@ class ScipyOptController(BaseController):
         return (dx_total) ** 2 + (dy_total) ** 2
 
 
-    def new_control(self, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy):
+    def compute_objective_latlon(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+        a = input[0]
+        alpha = input[1]
+
+        theta = theta_i + ang_vel * t + .5 * alpha * (t**2)
+
+        # delta_x = x_targ - x_curr
+        dx_vel = -(v_i * t + .5 * a *(t ** 2)) * np.sin(np.deg2rad(theta))
+        dx_curr = -v_cx * t
+
+        dx_total = dx_vel - dx_curr
+
+        # delta_y = y_targ - y_curr
+        dy_vel = -(v_i * t + .5 * a * (t ** 2)) * np.cos(np.deg2rad(theta))
+        dy_curr = -v_cy * t
+
+        dy_total = dy_vel - dy_curr
+
+        out = LatLon.dist(LatLon(y_targ, x_targ), LatLon(y_curr, x_curr).add_dist(dx_total, dy_total)) ** 2
+
+        return out
+
+
+    def compute_objective_integrated(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+        a = input[0]
+        alpha = input[1]
+
+        def theta(time):
+            return theta_i + ang_vel * time + .5 * alpha * (time**2)
+
+        # handle x first
+        def delta_x(time):
+            return -(v_i + a * time) * np.sin(np.deg2rad(theta(time))) - v_cx
+
+        delta_x_tot = integrate.quad(delta_x, 0, t)[0]
+
+        def delta_y(time):
+            return -(v_i + a * time) * np.cos(np.deg2rad(theta(time))) - v_cy
+
+        delta_y_tot = integrate.quad(delta_y, 0, t)[0]
+
+        return LatLon.dist(LatLon(y_curr, x_curr).add_dist(delta_x_tot, delta_y_tot), LatLon(y_targ, x_targ)) #+ 0.07 * np.abs(ang_vel + alpha * t) + 0.1 * np.abs(v_i + a * t)
+
+        # return LatLon.dist(LatLon(y_curr, x_curr).add_dist(delta_x_tot, delta_y_tot), LatLon(y_targ, x_targ)) + (np.abs(theta(t) - np.rad2deg(np.arctan2(x_curr - x_targ, y_curr - y_targ))))
+
+        # theta_deg = np.deg2rad(theta_i)
+        # ang_vel = np.deg2rad(ang_vel)
+        # alpha = np.deg2rad(alpha)
+        #
+        # currLatLon = LatLon(y_curr, x_curr)
+        # targLatLon = LatLon(y_targ, x_targ)
+        #
+        # # handle x first
+        # d_vcx = -.5 * v_cx * t**2
+        #
+        # # v_i*t term of integral
+        # x_vit_first = v_i * np.sin(theta_deg) * t
+        # x_vit_second = (v_i * ang_vel * np.cos(theta_deg) * t**2) / 2
+        # x_vit_third = (0.5 * (-(ang_vel**2)*np.sin(theta_deg) + alpha * np.cos(theta_deg)) * v_i * t**3) / 3
+        # x_vit_tot = -x_vit_first - x_vit_second - x_vit_third
+        #
+        # # .5 a t^2 term of integral
+        # x_hats_first = (a * np.sin(theta_deg) * t**2) / 2
+        # x_hats_second = (a * ang_vel * np.cos(theta_deg) * t**3) / 3
+        # x_hats_third = (0.5 * (-(ang_vel**2)*np.sin(theta_deg) + alpha * np.cos(theta_deg)) * a * t**4) / 4
+        # x_hats_tot = -x_hats_first - x_hats_second - x_hats_third
+        #
+        # delta_x = d_vcx + x_vit_tot + x_hats_tot
+        #
+        # # handle y
+        # d_vcy = -.5 * v_cy * t**2
+        #
+        # y_vit_first = v_i * np.cos(theta_deg) * t
+        # y_vit_second = -(v_i * ang_vel * np.sin(theta_deg) * t**2) / 2
+        # y_vit_third = (0.5 * (-(ang_vel**2)*np.cos(theta_deg) - alpha * np.sin(theta_deg)) * v_i * t**3) / 3
+        # y_vit_tot = -y_vit_first - y_vit_second - y_vit_third
+        #
+        # y_hats_first = (a * np.cos(theta_deg) * t**2) / 2
+        # y_hats_second = -(a * ang_vel * np.sin(theta_deg) * t**3) / 3
+        # y_hats_third = (0.5 * (-(ang_vel**2)*np.cos(theta_deg) - alpha * np.sin(theta_deg)) * a * t**4) / 4
+        # y_hats_tot = -y_hats_first - y_hats_second
+        #
+        # delta_y = d_vcy + y_vit_tot + y_hats_tot
+        #
+        # return LatLon.dist(currLatLon.add_dist(delta_x, delta_y), targLatLon) + (np.abs(ang_vel + t * alpha)**2)
+
+    def compute_objective_simple(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+        a = input[0]
+        alpha = input[1]
+
+        targ = LatLon(y_targ, x_targ)
+        curr = LatLon(y_curr, x_curr)
+
+        theta_i %= 360
+        if theta_i > 180:
+            theta_i = -1*(360 - theta_i)
+
+        delta_x = LatLon.dist(LatLon(y_curr, x_curr), LatLon(y_curr, x_targ))
+
+        if x_targ > x_curr:
+            delta_x *= -1
+
+        delta_y = LatLon.dist(LatLon(y_curr, x_curr), LatLon(y_targ, x_curr))
+
+        if y_targ > y_curr:
+            delta_y *= -1
+
+        dist = LatLon.dist(curr, targ)
+        target_heading = np.rad2deg(np.arctan2(delta_x + v_cx, delta_y + v_cy))
+
+        k1 = 0.75
+        accel_error = (np.sqrt(v_cx**2 + v_cy**2) + v_i + a * t - k1*dist)**2
+
+        k2 = 1
+        diff = (target_heading - theta_i)
+
+        diff2 = (target_heading + 180 - theta_i) % 360
+        #
+        # if np.abs(diff2) < np.abs(diff):
+        #     accel_error = (np.sqrt(v_cx**2 + v_cy**2) + v_i + a * t + k1*dist)**2
+        #     diff = diff2
+
+        heading_error = (ang_vel + alpha * t - k2*diff) ** 2
+
+        return accel_error + heading_error
+
+
+    def compute_objective(self, input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t=1):
+        params = (input, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t)
+        # return self.compute_objective_logging(*params)
+        return self.compute_objective_logging(*params)
+
+
+    def new_control(self, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, use_accumulator=True):
         obj_fun = self.compute_objective
 
-        dist = np.sqrt((x_curr - x_targ) ** 2 + (y_curr - y_targ) ** 2)
+        dist = LatLon.dist(LatLon(y_curr, x_curr), LatLon(y_targ, x_targ))
         angle = np.arctan2(x_curr - x_targ, y_curr - y_targ) * 180 / np.pi
 
-        alpha_init = self.compute_angular_accel(ang_vel, theta_i, angle)
-        accel_init = self.compute_accel(dist, v_i, theta_i, angle)
+        # alpha_init = self.compute_angular_accel(ang_vel, theta_i, angle)
+        # accel_init = self.compute_accel(dist, v_i, theta_i, angle)
+
+        if self.last_alpha is None:
+            alpha_init = self.compute_angular_accel(ang_vel, theta_i, angle)
+            accel_init = self.compute_accel(dist, v_i, theta_i, angle)
+        else:
+            alpha_init = self.last_alpha
+            accel_init = self.last_accel
 
         bounds = Bounds([-self.a_max, -self.max_alpha_mag], [self.a_max, self.max_alpha_mag])
 
+        t = 1
+        delta = 0
+        penalty = self.i_constant * self.running_error
+
+        if use_accumulator and self.last_dist is not None:
+            delta = np.abs(dist) - np.abs(self.last_dist)
+            self.accumulator += np.exp(-1600 * delta**2) * self.a_rate
+
+            penalty = self.a_constant * self.accumulator
+
+        t = max(t - penalty, 1e-3)
+
         solved = minimize(obj_fun, np.array([accel_init, alpha_init]),
-            (theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy), method='trust-constr', bounds=bounds,
+            (theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t), method='trust-constr', bounds=bounds,
             options={'maxiter': 3})
 
         x = solved.x
 
+        print(f"dist: {round(dist, 5)},  curr_vel: {round(v_i, 5)}, accel: {round(x[0], 5)}, alpha: {round(x[1], 5)}, t: {round(t, 5)}, delta: {round(delta, 5)}")
+
+        # print(self.compute_objective_integrated([accel_init, alpha_init],
+        #     *(theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, t)))
+
         solved = [np.clip(x[0], -self.a_max, self.a_max), np.clip(x[1], -self.max_alpha_mag, self.max_alpha_mag)]
 
-        print(f"dist: {round(dist, 5)},  curr_vel: {round(v_i, 5)}, accel: {round(solved[0], 5)}, alpha: {round(solved[1], 5)}, running_error: {round(self.running_error, 5)}")
-
+        # print(f"dist: {round(dist, 5)},  curr_vel: {round(v_i, 5)}, accel: {round(solved[0], 5)}, alpha: {round(solved[1], 5)}, t: {round(t, 5)}, delta: {round(delta, 5)}")
         return solved  # (accel, alpha)
 
 
@@ -99,37 +284,7 @@ class ScipyOptController(BaseController):
         return accel
 
 
-    # uses ground truth state
-    def select_action_from_state(self, env, state):
-        if self.in_sim:
-            env.set_waypoint(self.curr_waypoint)
-
-        if env.total_time < 1:
-            return Action(0, 0)
-
-        boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
-        boat_speed = env.speed
-
-
-        # boat_dx = intended_boat_dx - ocean_current_x
-        # boat_dy = intended_boat_dy - ocean_current_y
-        #
-        # self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE
-
-        waypoint = env.waypoints[self.curr_waypoint]
-
-        dist = np.sqrt((boat_x - waypoint[0]) ** 2 + (boat_y - waypoint[1]) ** 2)
-
-        if abs(dist) < 2:
-            self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
-            self.running_error = 0
-
-        self.running_error += abs(dist)
-
-        ocean_current_x, ocean_current_y = env.compute_ocean_current(boat_x, boat_y)
-
-        # Attempting to deduce desired speed (w/o currents) from real (w/ currents)
-
+    def estimate_currents(self, env, state):
         # a = 1
         # b = -(2*ocean_current_x*np.sin(np.deg2rad(boat_angle)) + 2*ocean_current_y*np.cos(np.deg2rad(boat_angle)))
         # c = ocean_current_x**2 + ocean_current_y**2 - (VEL_SCALE**2)*(boat_speed**2)
@@ -151,12 +306,40 @@ class ScipyOptController(BaseController):
         # if projection < 0:
         #     boat_speed *= -1
 
-        ocean_current_x *= 60
-        ocean_current_y *= 60
+        boat_lon, boat_lat = state[0], state[1]
+        ocean_current_x, ocean_current_y = env.compute_ocean_current(LatLon(boat_lat, boat_lon))
 
-        # print(f"boat_speed: {boat_speed}")
-        # print(f"env.speed: {env.speed}")
+        return ocean_current_x, ocean_current_y
 
-        control = self.new_control(boat_angle, boat_ang_vel, waypoint[0], boat_x, waypoint[1], boat_y, boat_speed, ocean_current_x, ocean_current_y)
+
+    # uses ground truth state
+    def select_action_from_state(self, env, state):
+        if self.in_sim:
+            env.set_waypoint(self.curr_waypoint)
+
+        if env.total_time < 1:
+            return Action(0, 0)
+
+        boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
+        boat_speed = env.speed
+
+        waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
+        dist = LatLon.dist(env.boat_coords, env.waypoints[self.curr_waypoint])
+
+        if abs(dist) < 0.05:
+            self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
+            self.running_error = 0
+            self.accumulator = 0
+            self.last_dist = 0
+
+        self.running_error += abs(dist)
+
+        ocean_current_x, ocean_current_y = self.estimate_currents(env, state)
+
+        control = self.new_control(boat_angle, boat_ang_vel, waypoint[0], boat_x, waypoint[1], boat_y, boat_speed, ocean_current_x, ocean_current_y, True)
+        self.last_dist = dist
+
+        self.last_alpha = control[1]
+        self.last_accel = control[0]
 
         return Action(2, [control[1], control[0]])

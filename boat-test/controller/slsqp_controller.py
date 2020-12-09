@@ -148,6 +148,9 @@ class SLSQPController(BaseController):
 
         control = self.new_control(boat_angle, boat_ang_vel, waypoint[0], boat_x, waypoint[1], boat_y, boat_speed, ocean_current_x, ocean_current_y)
 
+        control[0] = np.clip(control[0], -self.a_max, self.a_max)
+        control[1] = np.clip(control[1], -self.max_alpha_mag, self.max_alpha_mag)
+
         self.last_a = control[0]
         self.last_alpha = control[1]
 

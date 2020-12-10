@@ -63,7 +63,7 @@ class MinimalController(BaseController):
         #     # return Action(0, self.a_max)
         #     return Action(0, 0)
 
-        boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
+        boat_x, boat_y, boat_speed, desired_speed, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
         waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
         dist = LatLon.dist(LatLon(boat_y, boat_x), LatLon(waypoint[1], waypoint[0]))
 

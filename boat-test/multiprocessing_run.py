@@ -1,4 +1,5 @@
 from boat_simulation.simple import SimpleBoatSim
+from boat_simulation.latlon import LatLon
 
 from controller.keyboard_controller import KeyboardController
 from controller.autonomy_controller_template import AutonomyControllerTemplate
@@ -16,6 +17,7 @@ from multiprocessing.connection import Client
 import argparse
 import pygame
 import types
+import json
 
 
 def parse_args():
@@ -37,16 +39,42 @@ def parse_args():
     return args
 
 
+def format_state(state, env):
+    boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
+    currents = env.compute_ocean_current(LatLon(boat_y, boat_x))
+    out_dict = {
+        "state": {
+            "lat": boat_y,
+            "lon": boat_x,
+            "speed": boat_speed,
+            "angle": boat_angle,
+            "ang_vel": boat_ang_vel,
+            "ocean_current_x": currents[0],
+            "ocean_current_y": currents[1],
+            "desired_speed": env.speed,
+            "obstacles": obstacles
+        }
+    }
+    return json.dumps(out_dict)
+
+
 def simulation(args):
-    address = ('localhost', 6000)     # family is deduced to be 'AF_INET'
+    """
+    Simulates movements of the boat.
+
+    This function is to be executed in the process simulates the boat. It creates
+    an instance of the SimpleBoatSim class, repeatedly publishes state
+    information and receives actions taken by the boat.
+    """
+    address = ('localhost', 8000)     # family is deduced to be 'AF_INET'
     listener = Listener(address, authkey=b'secret password')
     conn = listener.accept()
 
     env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles))
     state = env.reset()
 
-    conn.send({"waypoints": env.waypoints})
-    conn.send(state)
+    env.set_waypoints(conn.recv())
+    conn.send(format_state(state, env))
 
     while True:
         action = conn.recv()
@@ -59,10 +87,16 @@ def simulation(args):
             # This can be replaced with env.close() to end the simulation.
             state = env.reset()
 
-        conn.send(state)
+        conn.send(format_state(state, env))
 
 
 def controller(args):
+    """
+    Specifies linear and angular accelerations to be applied by boat.
+
+    This function is to be executed in the process that handles (or simulates
+    handling) the main control of the boat.
+    """
     controller = None
     if args.controller == "keyboard":
         controller = KeyboardController(in_sim=False)
@@ -81,33 +115,60 @@ def controller(args):
     elif args.controller == "slsqp":
         controller = SLSQPController(in_sim=False)
 
-    address = ('localhost', 6000)
+    address = ('localhost', 8000)
     conn = Client(address, authkey=b'secret password')
 
-    waypoints = conn.recv()["waypoints"]
+    radio_address = ('localhost', 8001)
+    radio_conn = Client(radio_address, authkey=b'secret password')
+
+    waypoints = radio_conn.recv()
+    conn.send(waypoints)
     env = types.SimpleNamespace(waypoints=waypoints)
 
     while True:
-        state = conn.recv()
+        state = json.loads(conn.recv())["state"]
+        state = state["lon"], state["lat"], state["speed"], state["desired_speed"], state["angle"], state["ang_vel"], state["ocean_current_x"], state["ocean_current_y"], state["obstacles"]
 
         action = controller.choose_action(env, state)
         conn.send(action)
 
 
+def radio(args):
+    """
+    Sends waypoint information to the controller program.
+
+    This function is to be executed in the process that processes (or simulates
+    processing) radio input from the dashboard to the controller that specifies
+    where the robot is supposed to go.
+    """
+    address = ('localhost', 8001)     # family is deduced to be 'AF_INET'
+    listener = Listener(address, authkey=b'secret password')
+    conn = listener.accept()
+
+    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles))
+    state = env.reset()
+
+    conn.send(env.waypoints)
+
+
 def main():
     args = parse_args()
+    radio_proc = Process(target=radio, args=(args,))
     simulation_proc = Process(target=simulation, args=(args,))
     controller_proc = Process(target=controller, args=(args,))
 
     try:
+        radio_proc.start()
         simulation_proc.start()
         controller_proc.start()
 
         while True:
             pass
+
     finally:
         simulation_proc.terminate()
         controller_proc.terminate()
+        radio_proc.terminate()
 
 
 if __name__ == '__main__':

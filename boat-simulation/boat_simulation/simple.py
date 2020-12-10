@@ -258,6 +258,10 @@ class SimpleBoatSim(object):
         for w in self.waypoints_xy:
             self.waypoints.append(xy_to_latlon(w[0], w[1]))
 
+    def set_waypoints(self, waypoints):
+        self.waypoints = waypoints
+        self.waypoints_xy = [latlon_to_xy(w) for w in self.waypoints]
+
     def reset(self):
         """Resets simulation and returns initial state"""
         self.boat_coords = TOP_LEFT_LATLON.add_dist(SCREEN_WIDTH_M / 2, SCREEN_HEIGHT_M / 2) # lat lon coordinates

@@ -1,4 +1,4 @@
-from boat_simulation.simple import SimpleBoatSim
+from boat_simulation.simple import SimpleBoatSim, Action
 from boat_simulation.latlon import LatLon
 
 from controller.keyboard_controller import KeyboardController
@@ -18,6 +18,7 @@ import argparse
 import pygame
 import types
 import json
+import time
 
 
 def parse_args():
@@ -77,8 +78,19 @@ def simulation(args):
     conn.send(format_state(state, env))
 
     while True:
-        action = conn.recv()
+        events = pygame.event.get()
+
+        to_send = False
+        if conn.poll():
+            action = conn.recv()
+            to_send = True
+        else:
+            action = Action(0, 0)
+
         state, _, end_sim, _ = env.step(action)
+
+        if to_send:
+            conn.send(format_state(state, env))
 
         if not args.no_render:
             env.render()
@@ -86,8 +98,6 @@ def simulation(args):
         if end_sim:
             # This can be replaced with env.close() to end the simulation.
             state = env.reset()
-
-        conn.send(format_state(state, env))
 
 
 def controller(args):
@@ -126,11 +136,13 @@ def controller(args):
     env = types.SimpleNamespace(waypoints=waypoints)
 
     while True:
-        state = json.loads(conn.recv())["state"]
-        state = state["lon"], state["lat"], state["speed"], state["desired_speed"], state["angle"], state["ang_vel"], state["ocean_current_x"], state["ocean_current_y"], state["obstacles"]
+        if conn.poll():
+            state = json.loads(conn.recv())["state"]
+            state = state["lon"], state["lat"], state["speed"], state["desired_speed"], state["angle"], state["ang_vel"], state["ocean_current_x"], state["ocean_current_y"], state["obstacles"]
 
-        action = controller.choose_action(env, state)
-        conn.send(action)
+            time.sleep(0)
+            action = controller.choose_action(env, state)
+            conn.send(action)
 
 
 def radio(args):

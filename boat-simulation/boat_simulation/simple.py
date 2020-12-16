@@ -4,14 +4,11 @@ import numpy as np
 from boat_simulation.latlon import LatLon
 from boat_simulation.simulation_sprites import *
 
-
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 
-
-SCREEN_WIDTH_M = 20 # meters
-SCREEN_HEIGHT_M = (SCREEN_WIDTH_M / SCREEN_WIDTH) * SCREEN_HEIGHT # meters
-
+SCREEN_WIDTH_M = 20  # meters
+SCREEN_HEIGHT_M = (SCREEN_WIDTH_M / SCREEN_WIDTH) * SCREEN_HEIGHT  # meters
 
 # change in latitude is change in y, change in longitude is change in x
 TOP_LEFT_LATLON = LatLon(7.399640, 134.457619)
@@ -19,11 +16,13 @@ BOT_RIGHT_LATLON = TOP_LEFT_LATLON.add_dist(SCREEN_WIDTH_M, SCREEN_HEIGHT_M)
 
 PIXELS_PER_METER = SCREEN_WIDTH / SCREEN_WIDTH_M
 
-BOAT_WIDTH = 0.5 # meters
-BOAT_HEIGHT = 1 # meters
+BOAT_WIDTH = 0.5  # meters
+BOAT_HEIGHT = 1  # meters
+BOAT_MASS = 5  # kg
 
-VEL_SCALE = 1/60
-ANGLE_SCALE = 1/60
+VEL_SCALE = 1 / 60
+ANGLE_SCALE = 1 / 60
+
 
 def latlon_to_xy(pos):
     left_point = LatLon(pos.lat, TOP_LEFT_LATLON.lon)
@@ -40,12 +39,14 @@ def latlon_to_xy(pos):
     if pos.lon < TOP_LEFT_LATLON.lon:
         x *= -1
 
-    return (x,y)
+    return (x, y)
+
 
 def xy_to_latlon(x, y):
-    loc =  TOP_LEFT_LATLON.add_dist(x / PIXELS_PER_METER,
-                                    y / PIXELS_PER_METER)
+    loc = TOP_LEFT_LATLON.add_dist(x / PIXELS_PER_METER,
+                                   y / PIXELS_PER_METER)
     return loc
+
 
 class SimpleBoatSim(object):
     """boat simulation"""
@@ -60,7 +61,7 @@ class SimpleBoatSim(object):
         self.screen = None
         self.boat_sprite = BoatSprite(PIXELS_PER_METER * BOAT_WIDTH, PIXELS_PER_METER * BOAT_HEIGHT)
 
-        self.boat_coords = TOP_LEFT_LATLON.add_dist(SCREEN_WIDTH_M / 2, SCREEN_HEIGHT_M / 2) # lat lon coordinates
+        self.boat_coords = TOP_LEFT_LATLON.add_dist(SCREEN_WIDTH_M / 2, SCREEN_HEIGHT_M / 2)  # lat lon coordinates
         print(f"INITIAL BOAT COORDS: {self.boat_coords}")
         # self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
 
@@ -69,12 +70,12 @@ class SimpleBoatSim(object):
 
         self.curr_waypoint = -1
 
-        self.speed = 0 # m/s
-        self.angular_speed = 0 # deg/sec
-        self.angle = 0 # deg
+        self.speed = 0  # m/s
+        self.angular_speed = 0  # deg/sec
+        self.angle = 0  # deg
 
-        self.real_speed = 0 # m/s
-        self.real_angular_speed = 0 # deg/sec
+        self.real_speed = 0  # m/s
+        self.real_angular_speed = 0  # deg/sec
 
         self.obstacles = pygame.sprite.Group()
         self.max_obstacles = max_obstacles
@@ -100,7 +101,7 @@ class SimpleBoatSim(object):
         truth = self.get_ground_truth_state()
 
         for i in range(5):
-            truth[i] += .5*(np.random.uniform() - .5)
+            truth[i] += .5 * (np.random.uniform() - .5)
 
         # Delete a few obstacles
         obs_states = truth[5]
@@ -108,15 +109,15 @@ class SimpleBoatSim(object):
 
         # Add noise to obstacle states
         for i in range(len(obs_states)):
-            obs_states[i] = [k + .5*(np.random.uniform() - .5) for k in obs_states[i]]
+            obs_states[i] = [k + .5 * (np.random.uniform() - .5) for k in obs_states[i]]
 
         truth[5] = obs_states
         return truth
 
     def get_sensor_observation(self, d_theta, ang_vel_noise=.5, heading_noise=1):
         # [gyro angular velocity (deg/s), magnetometer heading (degrees)]
-        return [ang_vel_noise*np.random.uniform(-1, 1) + d_theta/(1/60),
-            heading_noise*np.random.uniform(-1, 1) + self.angle]
+        return [ang_vel_noise * np.random.uniform(-1, 1) + d_theta / (1 / 60),
+                heading_noise * np.random.uniform(-1, 1) + self.angle]
 
     def step(self, action):
         """
@@ -140,11 +141,11 @@ class SimpleBoatSim(object):
             self.speed += VEL_SCALE * action.value[1]
 
         # speed is in meters/sec
-        intended_boat_dx = VEL_SCALE * self.speed * np.sin(np.deg2rad(self.angle))    # meters/frame
-        intended_boat_dy = VEL_SCALE * self.speed * np.cos(np.deg2rad(self.angle))    # meters/frame
+        intended_boat_dx = VEL_SCALE * self.speed * np.sin(np.deg2rad(self.angle))  # meters/frame
+        intended_boat_dy = VEL_SCALE * self.speed * np.cos(np.deg2rad(self.angle))  # meters/frame
 
         # Account for ocean currents
-        ocean_current_x, ocean_current_y = self.compute_ocean_current(self.boat_coords) # meters/sec
+        ocean_current_x, ocean_current_y = self.compute_ocean_current(self.boat_coords)  # meters/sec
 
         # make currents meters/frame
         ocean_current_x *= VEL_SCALE
@@ -152,10 +153,15 @@ class SimpleBoatSim(object):
 
         # print(f"current magnitude in cm/sec: {100 * np.sqrt((ocean_current_x / VEL_SCALE)**2 + (ocean_current_y / VEL_SCALE)**2)}")
 
-        boat_dx = intended_boat_dx - ocean_current_x    # meters/frame
-        boat_dy = intended_boat_dy - ocean_current_y    # meters/frame
+        boat_dx = intended_boat_dx - ocean_current_x  # meters/frame
+        boat_dy = intended_boat_dy - ocean_current_y  # meters/frame
 
-        self.real_speed = np.sqrt(boat_dx**2 + boat_dy**2) / VEL_SCALE  # meters/sec
+        self.apply_drag(boat_dx, boat_dy)
+
+        # boat_dx += drag_dx
+        # boat_dy += drag_dy
+
+        self.real_speed = np.sqrt(boat_dx ** 2 + boat_dy ** 2) / VEL_SCALE  # meters/sec
 
         if self.speed != 0:
             projection = (intended_boat_dx * boat_dx + intended_boat_dy * boat_dy) / (VEL_SCALE * self.speed)
@@ -166,7 +172,7 @@ class SimpleBoatSim(object):
         # print(self.boat_coords)
 
         # Currents apply a torque on the boat and make it rotate
-        d_theta = ANGLE_SCALE * self.angular_speed # deg/frame
+        d_theta = ANGLE_SCALE * self.angular_speed  # deg/frame
         d_theta += self.current_rotation()
 
         self.angle += d_theta
@@ -194,7 +200,7 @@ class SimpleBoatSim(object):
         # gets all sprites in the obstacles Group that have collided with the boat
         collision = pygame.sprite.spritecollide(self.boat_sprite, self.obstacles, True)
 
-        self.total_time += 1/60
+        self.total_time += 1 / 60
 
         end_sim = False
         if len(collision) > 0:
@@ -203,8 +209,8 @@ class SimpleBoatSim(object):
         return state, 0, end_sim, None
 
     # a and b are vectors in meters
-    def proj(self, a, b):   # Project a onto b
-        coefficient = (a[0] * b[0] + a[1] * b[1]) / (b[0]**2 + b[1]**2)
+    def proj(self, a, b):  # Project a onto b
+        coefficient = (a[0] * b[0] + a[1] * b[1]) / (b[0] ** 2 + b[1] ** 2)
         return (coefficient * b[0], coefficient * b[1])
 
     def current_rotation(self):
@@ -235,9 +241,8 @@ class SimpleBoatSim(object):
         top_perp = (top_x - top_along[0], top_y - top_along[1])
         bot_perp = (bot_x - bot_along[0], bot_y - bot_along[1])
 
-
         # vector in meters
-        total = ((top_perp[0] + bot_perp[0])/2, (top_perp[1] + bot_perp[1])/2)
+        total = ((top_perp[0] + bot_perp[0]) / 2, (top_perp[1] + bot_perp[1]) / 2)
 
         # cross product between total and -boat_vector
 
@@ -247,11 +252,11 @@ class SimpleBoatSim(object):
         if cross_prod < 0:
             coeff = -1
 
-        return coeff * np.sqrt(total[0]**2 + total[1]**2)
+        return coeff * np.sqrt(total[0] ** 2 + total[1] ** 2)
 
     def create_waypoints(self):
         self.waypoints_xy = self.generate_data(15, (BOAT_WIDTH) / 2, SCREEN_WIDTH - (BOAT_WIDTH) / 2, BOAT_HEIGHT / 2,
-                                            SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
+                                               SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
         self.waypoints_xy = self.compute_convex_hull(self.waypoints_xy)
 
         self.waypoints = []
@@ -260,7 +265,7 @@ class SimpleBoatSim(object):
 
     def reset(self):
         """Resets simulation and returns initial state"""
-        self.boat_coords = TOP_LEFT_LATLON.add_dist(SCREEN_WIDTH_M / 2, SCREEN_HEIGHT_M / 2) # lat lon coordinates
+        self.boat_coords = TOP_LEFT_LATLON.add_dist(SCREEN_WIDTH_M / 2, SCREEN_HEIGHT_M / 2)  # lat lon coordinates
         # self.boat_coords = ((BOAT_WIDTH) / 2, SCREEN_HEIGHT - (BOAT_HEIGHT) / 2)
         self.angle = 0
 
@@ -321,7 +326,8 @@ class SimpleBoatSim(object):
         font = pygame.font.SysFont(None, 24)
 
         vel_text = font.render(f"vel: %s m/sec" % round(self.speed, 5), True, (255, 255, 255))
-        ang_vel_text = font.render(f"ang. vel applied: %s deg/sec" % round(self.angular_speed, 5), True, (255, 255, 255))
+        ang_vel_text = font.render(f"ang. vel applied: %s deg/sec" % round(self.angular_speed, 5), True,
+                                   (255, 255, 255))
         ang_text = font.render(f"ang: %s deg" % round(self.angle, 5), True, (255, 255, 255))
 
         self.screen.blit(vel_text, (20, 20))
@@ -359,8 +365,9 @@ class SimpleBoatSim(object):
         for x in range(0, SCREEN_WIDTH + 1, 100):
             for y in range(0, SCREEN_HEIGHT + 1, 100):
                 # m/sec
-                ocean_x, ocean_y = self.compute_ocean_current(TOP_LEFT_LATLON.add_dist((x / SCREEN_WIDTH) * SCREEN_WIDTH_M,
-                                                                                       (y/SCREEN_HEIGHT) * SCREEN_HEIGHT_M))
+                ocean_x, ocean_y = self.compute_ocean_current(
+                    TOP_LEFT_LATLON.add_dist((x / SCREEN_WIDTH) * SCREEN_WIDTH_M,
+                                             (y / SCREEN_HEIGHT) * SCREEN_HEIGHT_M))
 
                 ocean_x = 100 * 45 * ocean_x / self.current_level
                 ocean_y = 100 * 45 * ocean_y / self.current_level
@@ -428,14 +435,52 @@ class SimpleBoatSim(object):
 
         # 25 and 15 are magic constants right now
         ocean_current_x = multiplier * np.cos(
-            self.ocean_current_a * x + self.ocean_current_b * y + 15 * (self.current_level / 10) * self.ocean_current_e * self.total_time)
+            self.ocean_current_a * x + self.ocean_current_b * y + 15 * (
+                        self.current_level / 10) * self.ocean_current_e * self.total_time)
         ocean_current_y = multiplier * np.cos(
-            self.ocean_current_c * x + self.ocean_current_d * y + 15 * (self.current_level/ 10) * self.ocean_current_e * self.total_time)
+            self.ocean_current_c * x + self.ocean_current_d * y + 15 * (
+                        self.current_level / 10) * self.ocean_current_e * self.total_time)
 
         ocean_current_x /= (PIXELS_PER_METER * VEL_SCALE)
         ocean_current_y /= (PIXELS_PER_METER * VEL_SCALE)
 
         return ocean_current_x, ocean_current_y
+
+    def apply_drag(self, boat_dx, boat_dy):
+
+        # speed = np.sqrt(boat_dx ** 2 + boat_dy ** 2) / VEL_SCALE  # m/s
+
+        drag_coefficient = 1
+        seawater_density = 1026  # kg/m^3
+        depth_of_boat_under_water = 0.2  # meters, represents how much of the boat is underwater
+        cross_section_area = BOAT_WIDTH * depth_of_boat_under_water
+
+        drag_force = 0.5 * seawater_density * (self.speed ** 2) * drag_coefficient * cross_section_area  # Newtons
+
+        drag_accel = drag_force / BOAT_MASS # m/s^2
+
+        print(f"DRAG: {boat_dx}, {boat_dy}, speed={self.speed} --> {drag_accel}")
+
+        # drag_accel *= VEL_SCALE ** 2 # m/frame^2
+
+        # speed_change = drag_accel / VEL_SCALE # m/frame
+
+        if self.speed > 0:
+            self.speed -= drag_accel * VEL_SCALE
+        else:
+            self.speed += drag_accel * VEL_SCALE
+
+        # angle_of_movement = np.rad2deg(np.arctan2(boat_dy, -boat_dx)) # 0 radians is at positive x-axis
+        #
+        # drag_dx = -drag_accel * np.cos(np.deg2rad(angle_of_movement))
+        # drag_dy = -drag_accel * np.sin(np.deg2rad(angle_of_movement))
+        #
+        # print(f"DRAG: {boat_dx}, {boat_dy}, speed={speed} --> {drag_dx}, {drag_dy}, angle={angle_of_movement}")
+        #
+        # return drag_dx, drag_dy
+        # return 0, 0
+
+        # return -boat_dx / 3, -boat_dy / 3
 
 
 class Action(object):

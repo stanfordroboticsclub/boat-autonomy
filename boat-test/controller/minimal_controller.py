@@ -9,7 +9,7 @@ from boat_simulation.latlon import LatLon
 # Boat is modelled as a rod with two thrusters on each end
 class MinimalController(BaseController):
     def __init__(self, in_sim=True):
-        BaseController.__init__(self, "Minimal controller for autonomy")
+        BaseController.__init__(self, "Minimal controller for autonomy", in_sim)
         self.in_sim = in_sim
 
         # 5 kg f ~ 50 N
@@ -59,13 +59,13 @@ class MinimalController(BaseController):
         if self.in_sim:
             env.set_waypoint(self.curr_waypoint)
 
-        if env.total_time < 1:
-            # return Action(0, self.a_max)
-            return Action(0, 0)
+        # if env.total_time < 1:
+        #     # return Action(0, self.a_max)
+        #     return Action(0, 0)
 
-        boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
+        boat_x, boat_y, boat_speed, desired_speed, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
         waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
-        dist = LatLon.dist(env.boat_coords, env.waypoints[self.curr_waypoint])
+        dist = LatLon.dist(LatLon(boat_y, boat_x), LatLon(waypoint[1], waypoint[0]))
 
         if abs(dist) < 0.05 and abs(boat_speed) < 5:
             self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)

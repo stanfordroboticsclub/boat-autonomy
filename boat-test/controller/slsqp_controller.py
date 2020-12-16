@@ -11,7 +11,7 @@ from boat_simulation.latlon import LatLon
 # Boat is modelled as a rod with two thrusters on each end
 class SLSQPController(BaseController):
     def __init__(self, in_sim=True):
-        BaseController.__init__(self, "Minimal controller for autonomy")
+        BaseController.__init__(self, "Minimal controller for autonomy", in_sim)
         self.in_sim = in_sim
 
         self.f_max = 50
@@ -130,21 +130,18 @@ class SLSQPController(BaseController):
         if self.in_sim:
             env.set_waypoint(self.curr_waypoint)
 
-        if env.total_time < 1:
-            return Action(0, 0)
+        # if env.total_time < 1:
+        #     return Action(0, 0)
 
-        boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
-        boat_speed = env.speed
+        boat_x, boat_y, _, boat_speed, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
 
         waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
-        dist = LatLon.dist(env.boat_coords, env.waypoints[self.curr_waypoint])
+        dist = LatLon.dist(LatLon(boat_y, boat_x), LatLon(waypoint[1], waypoint[0]))
 
         if abs(dist) < 0.05:
             self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
             self.last_dist = None
             self.accumulator = 0
-
-        ocean_current_x, ocean_current_y = self.estimate_currents(env, state)
 
         control = self.new_control(boat_angle, boat_ang_vel, waypoint[0], boat_x, waypoint[1], boat_y, boat_speed, ocean_current_x, ocean_current_y)
 

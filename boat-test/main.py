@@ -1,4 +1,5 @@
 from boat_simulation.simple import SimpleBoatSim
+from boat_simulation.latlon import LatLon
 
 from controller.keyboard_controller import KeyboardController
 from controller.autonomy_controller_template import AutonomyControllerTemplate
@@ -31,6 +32,12 @@ def parse_args():
     return args
 
 
+def format_state(state, env):
+    boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
+    currents = env.compute_ocean_current(LatLon(boat_y, boat_x))
+    return boat_x, boat_y, boat_speed, env.speed, boat_angle, boat_ang_vel, currents[0], currents[1], obstacles
+
+
 def main():
     args = parse_args()
     env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles))
@@ -57,7 +64,7 @@ def main():
     print("Instantiated controller:", controller.name)
 
     while True:
-        action = controller.choose_action(env, state)
+        action = controller.choose_action(env, format_state(state, env))
         state, _, end_sim, _ = env.step(action)
 
         if not args.no_render:

@@ -2,6 +2,8 @@
 
 ## Usage
 
+### Regular use
+
 - Download the folder named ‘boat’
 - (Optionally install anaconda, create a venv, and activate it)
 - `cd boat-simulation`
@@ -13,6 +15,15 @@
 - The nature of the state representation available to the controller to plan its actions can be controlled with the `-sm` flag, eg: `python main.py -sm noisy`.
   Default is `ground_truth`.
 - A full list of controller names and all other arguments can be accessed in the help entry (`python main.py -h`)
+
+### Multiprocessing
+
+- `message_passing_run.py` uses the Client and Listener features of the `multiprocessing.connection` module to separate the environment, the controller, and the 'radio' that sets waypoints into different processes.
+- `pipe_run.py` uses `multiprocessing`'s Pipe functionality for ipc to do the same
+
+Both files can be run exactly like `main.py` with the same flags.
+
+### More Info
 
 If you encounter any issues with running the simulation, refer to the troubleshooting section at the end of this document.
 

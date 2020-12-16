@@ -452,7 +452,7 @@ class SimpleBoatSim(object):
 
         drag_coefficient = 1
         seawater_density = 1026  # kg/m^3
-        depth_of_boat_under_water = 0.2  # meters, represents how much of the boat is underwater
+        depth_of_boat_under_water = 0.1  # meters, represents how much of the boat is underwater
         cross_section_area = BOAT_WIDTH * depth_of_boat_under_water
 
         drag_force = 0.5 * seawater_density * (self.speed ** 2) * drag_coefficient * cross_section_area  # Newtons
@@ -464,6 +464,8 @@ class SimpleBoatSim(object):
         # drag_accel *= VEL_SCALE ** 2 # m/frame^2
 
         # speed_change = drag_accel / VEL_SCALE # m/frame
+
+        drag_accel *= 0.05
 
         if self.speed > 0:
             self.speed -= drag_accel * VEL_SCALE

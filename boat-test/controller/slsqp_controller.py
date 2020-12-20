@@ -183,20 +183,6 @@ class SLSQPController(BaseController):
         # where should we have gone?
         t = 1/60
 
-        # def theta(time):
-        #     return old_boat_angle + old_boat_ang_vel * time + .5 * self.last_alpha * (time**2)
-        #
-        # # handle x first
-        # def delta_x(time):
-        #     return -(old_boat_speed + self.last_a * time) * np.sin(np.deg2rad(theta(time)))
-        #
-        # delta_x_tot = integrate.quad(delta_x, 0, t)[0]
-        #
-        # def delta_y(time):
-        #     return -(old_boat_speed + self.last_a * time) * np.cos(np.deg2rad(theta(time)))
-        #
-        # delta_y_tot = integrate.quad(delta_y, 0, t)[0]
-
         theta_final = old_boat_angle + old_boat_ang_vel * t + .5 * self.last_alpha * (t**2)
 
         delta_x_tot = -(0.5*self.last_a*t**2 + old_boat_speed*t)*np.sin(np.deg2rad(theta_final))

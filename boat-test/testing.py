@@ -40,31 +40,45 @@ def format_state(state, env):
 
 
 def test_controller(controller, env, args):
-    num_trials = 1
+    num_trials = 5
     curr_trial = 0
 
     trial_avg_a = 0
     trial_avg_alpha = 0
+    trial_avg_t = 0
 
     avg_a = 0
     avg_alpha = 0
+    avg_t = 0
 
     while curr_trial < num_trials:
         finished_first = False
         state = env.reset()
 
         num_t = 0
+        last_waypoint = 0
+        last_t = 0
+
+        print(f"Trial: {curr_trial}")
 
         while True:
-            if controller.curr_waypoint == 0 and finished_first:
+            if controller.curr_waypoint != 0 and not finished_first:
+                finished_first = True
+            elif controller.curr_waypoint == 0 and finished_first:
                 curr_trial += 1
                 break
-            elif controller.curr_waypoint != 0 and not finished_first:
-                finished_first = True
 
             action = controller.choose_action(env, format_state(state, env))
 
             if action.type == 2:
+                if last_t == 0:
+                    last_t = num_t
+                if last_waypoint != controller.curr_waypoint:
+                    time_taken = (num_t - last_t) / 60
+                    last_t = num_t
+                    trial_avg_t = ((controller.curr_waypoint * trial_avg_t) + time_taken) / (1 + controller.curr_waypoint)
+                    last_waypoint = controller.curr_waypoint
+
                 vals = action.value
                 trial_avg_a = ((num_t*trial_avg_a) + abs(vals[1])) / (num_t + 1)
                 trial_avg_alpha = ((num_t*trial_avg_alpha) + abs(vals[0])) / (num_t + 1)
@@ -81,8 +95,9 @@ def test_controller(controller, env, args):
 
         avg_a = ((curr_trial*avg_a) + trial_avg_a) / (curr_trial + 1)
         avg_alpha = ((curr_trial*avg_alpha) + trial_avg_alpha) / (curr_trial + 1)
+        avg_t = ((curr_trial*avg_t) + trial_avg_t) / (curr_trial + 1)
 
-    return avg_a, avg_alpha
+    return avg_a, avg_alpha, avg_t
 
 
 def main():
@@ -90,14 +105,15 @@ def main():
     env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles))
     state = env.reset()
 
-    controllers = [MinimalController(), PIDController(), SLSQPController()]
+    controllers = [MinimalController(print_info=False), PIDController(print_info=False), SLSQPController(print_info=False)]
 
-    cols = "name, avg_a, avg_alpha".split(", ")
+    cols = "name, avg_a, avg_alpha, avg_time_to_waypoint".split(", ")
     results = pd.DataFrame(columns=cols)
 
     for controller in controllers:
-        avg_a, avg_alpha = test_controller(controller, env, args)
-        res_dict = dict(zip(cols, [controller.name, avg_a, avg_alpha]))
+        print(f"Testing: {controller.name}")
+        avg_a, avg_alpha, avg_time_to_waypoint = test_controller(controller, env, args)
+        res_dict = dict(zip(cols, [controller.name, avg_a, avg_alpha, avg_time_to_waypoint]))
         results = results.append(res_dict, ignore_index=True)
 
     results.to_csv("logs/results.csv")

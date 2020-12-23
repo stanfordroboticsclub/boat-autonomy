@@ -13,7 +13,7 @@ PIXELS_PER_METER = 30
 
 # Boat is modelled as a rod with two thrusters on each end
 class PIDController(BaseController):
-    def __init__(self, in_sim=True):
+    def __init__(self, in_sim=True, print_info=True):
         BaseController.__init__(self, "pid")
         self.in_sim = in_sim
 
@@ -34,6 +34,8 @@ class PIDController(BaseController):
 
         self.running_dist_err = 0
         self.running_angle_err = 0
+
+        self.print_info = print_info
 
 
     def get_distances(self, waypoint, boat_x, boat_y):
@@ -120,6 +122,7 @@ class PIDController(BaseController):
         self.last_angle = angle
 
         # print(f"self.running_dist_err: {self.running_dist_err}, self.running_angle_err: {self.running_angle_err}")
-        print(f"dist: {round(dist, 5)},  curr_vel: {round(boat_speed, 5)}, accel: {round(control[0][0], 5)}, alpha: {round(control[2][0], 5)}")
+        if self.print_info:
+            print(f"dist: {round(dist, 5)},  curr_vel: {round(boat_speed, 5)}, accel: {round(control[0][0], 5)}, alpha: {round(control[2][0], 5)}")
 
         return Action(2, [control[2][0], control[0][0]])

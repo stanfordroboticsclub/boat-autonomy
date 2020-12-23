@@ -10,7 +10,7 @@ from boat_simulation.latlon import LatLon
 
 # Boat is modelled as a rod with two thrusters on each end
 class SLSQPController(BaseController):
-    def __init__(self, in_sim=True):
+    def __init__(self, in_sim=True, print_info=True):
         BaseController.__init__(self, "slsqp", in_sim)
         self.in_sim = in_sim
 
@@ -22,6 +22,8 @@ class SLSQPController(BaseController):
         self.max_alpha_mag = 6 * self.f_max / (self.boat_mass * self.boat_width)
 
         self.curr_waypoint = 0
+
+        self.print_info = print_info
 
         self.last_a = 0
         self.last_alpha = 0
@@ -92,7 +94,7 @@ class SLSQPController(BaseController):
         return (self.last_a, self.last_alpha)
 
 
-    def new_control(self, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy, print_info=True):
+    def new_control(self, theta_i, ang_vel, x_targ, x_curr, y_targ, y_curr, v_i, v_cx, v_cy):
         currPos = LatLon(y_curr, x_curr)
         targPos = LatLon(y_targ, x_targ)
 
@@ -123,7 +125,7 @@ class SLSQPController(BaseController):
         out = solved.x
 
         # out = guess
-        if print_info:
+        if self.print_info:
             print(f"dist: {round(LatLon.dist(currPos, targPos), 5)},  curr_vel: {round(v_i, 5)}, accel: {round(out[0], 5)}, alpha: {round(out[1], 5)}, init alpha: {guess[1]}, t: {round(t, 5)}")
 
         return out

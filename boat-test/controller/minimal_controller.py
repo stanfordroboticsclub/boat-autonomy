@@ -8,7 +8,7 @@ from boat_simulation.latlon import LatLon
 
 # Boat is modelled as a rod with two thrusters on each end
 class MinimalController(BaseController):
-    def __init__(self, in_sim=True):
+    def __init__(self, in_sim=True, print_info=True):
         BaseController.__init__(self, "minimal", in_sim)
         self.in_sim = in_sim
 
@@ -26,6 +26,7 @@ class MinimalController(BaseController):
         self.i_constant = 4e-6
 
         self.curr_waypoint = 0
+        self.print_info = print_info
 
 
     def compute_angular_accel(self, ang_vel, curr_heading, target_heading, max_t=1):
@@ -49,7 +50,9 @@ class MinimalController(BaseController):
         dist = np.cos(np.deg2rad(target_heading - curr_heading)) * dist
         accel = np.clip(2*(dist - curr_vel*max_t) / (max_t**2), -self.a_max, self.a_max)
 
-        print(f"dist: {round(dist, 5)},  curr_vel: {round(curr_vel, 5)},  max t: {round(max_t, 5)},  accel: {round(accel, 5)}, running_error: {round(self.running_error, 5)}")
+        if self.print_info:
+            print(f"dist: {round(dist, 5)},  curr_vel: {round(curr_vel, 5)},  max t: {round(max_t, 5)},  accel: {round(accel, 5)}, running_error: {round(self.running_error, 5)}")
+
         return accel
 
 

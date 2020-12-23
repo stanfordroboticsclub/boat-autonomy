@@ -11,7 +11,7 @@ from boat_simulation.latlon import LatLon
 # Boat is modelled as a rod with two thrusters on each end
 class SLSQPController(BaseController):
     def __init__(self, in_sim=True):
-        BaseController.__init__(self, "Minimal controller for autonomy", in_sim)
+        BaseController.__init__(self, "slsqp", in_sim)
         self.in_sim = in_sim
 
         self.f_max = 50

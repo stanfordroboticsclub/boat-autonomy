@@ -14,7 +14,7 @@ PIXELS_PER_METER = 30
 # Boat is modelled as a rod with two thrusters on each end
 class PIDController(BaseController):
     def __init__(self, in_sim=True):
-        BaseController.__init__(self, "Minimal controller for autonomy")
+        BaseController.__init__(self, "pid")
         self.in_sim = in_sim
 
         self.f_max = 50

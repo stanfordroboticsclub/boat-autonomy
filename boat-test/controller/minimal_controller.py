@@ -9,7 +9,7 @@ from boat_simulation.latlon import LatLon
 # Boat is modelled as a rod with two thrusters on each end
 class MinimalController(BaseController):
     def __init__(self, in_sim=True):
-        BaseController.__init__(self, "Minimal controller for autonomy", in_sim)
+        BaseController.__init__(self, "minimal", in_sim)
         self.in_sim = in_sim
 
         # 5 kg f ~ 50 N

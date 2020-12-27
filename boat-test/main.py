@@ -9,12 +9,13 @@ from controller.scipy_opt_controller import ScipyOptController
 from controller.scipy_logging_controller import ScipyLoggingController
 from controller.pid_controller import PIDController
 from controller.slsqp_controller import SLSQPController
+from controller.planning_controller import PlanningController
 
 import argparse
 
 
 def parse_args():
-    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller", "scipy_logging", "scipy_opt", "pid", "slsqp"]
+    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller", "scipy_logging", "scipy_opt", "pid", "slsqp", "planning"]
     state_modes = ["ground_truth", "noisy", "sensor"]
 
     parser = argparse.ArgumentParser(description='Run the boat simulation.')
@@ -60,6 +61,8 @@ def main():
         controller = PIDController()
     elif args.controller == "slsqp":
         controller = SLSQPController()
+    elif args.controller == "planning":
+        controller = PlanningController()
 
     print("Instantiated controller:", controller.name)
 

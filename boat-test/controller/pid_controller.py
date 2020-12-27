@@ -60,31 +60,13 @@ class PIDController(BaseController):
         return angle
 
 
-    # uses ground truth state
-    def select_action_from_state(self, env, state):
-        if self.in_sim:
-            env.set_waypoint(self.curr_waypoint)
-
-        if env.total_time < 1:
-            return Action(0, 0)
-
-        boat_x, boat_y, boat_speed, _, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
-
-        waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
-        dist = LatLon.dist(LatLon(boat_y, boat_x), LatLon(waypoint[1], waypoint[0]))
-
-        if abs(dist) < 0.05:
-            self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
-            self.running_dist_err = 0
-            self.running_angle_err = 0
-
+    def control(self, boat_angle, delta_x, delta_y, boat_speed, boat_ang_vel):
         boat_angle_deg = np.deg2rad(boat_angle)
         R = np.array([  [-np.sin(boat_angle_deg),   np.cos(boat_angle_deg) ,    0],
                         [-np.cos(boat_angle_deg),  -np.sin(boat_angle_deg),    0],
                         [0,                         0,                          1]]).reshape((3, 3))
         R_inv = R.T
 
-        delta_x, delta_y = self.get_distances(waypoint, boat_x, boat_y)
         angle = self.get_required_angle_change(boat_angle, delta_x, delta_y)
 
         err_vec = np.array([self.running_dist_err, 0, self.running_angle_err])
@@ -100,6 +82,8 @@ class PIDController(BaseController):
         control = self.p_scale * diff_v
         control[2][0] = np.rad2deg(control[2][0])
         control = np.clip(control, np.array([-self.a_max, 0, -self.max_alpha_mag]).reshape(3, 1), np.array([self.a_max, 0, self.max_alpha_mag]).reshape(3, 1))
+
+        dist = np.sqrt((delta_x ** 2) + (delta_y ** 2))
 
         if self.last_dist is not None and self.last_angle is not None:
             delta = abs(dist) - abs(self.last_dist)
@@ -126,3 +110,26 @@ class PIDController(BaseController):
             print(f"dist: {round(dist, 5)},  curr_vel: {round(boat_speed, 5)}, accel: {round(control[0][0], 5)}, alpha: {round(control[2][0], 5)}")
 
         return Action(2, [control[2][0], control[0][0]])
+
+
+    # uses ground truth state
+    def select_action_from_state(self, env, state):
+        if self.in_sim:
+            env.set_waypoint(self.curr_waypoint)
+
+        if env.total_time < 1:
+            return Action(0, 0)
+
+        boat_x, boat_y, boat_speed, _, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
+
+        waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
+        dist = LatLon.dist(LatLon(boat_y, boat_x), LatLon(waypoint[1], waypoint[0]))
+
+        if abs(dist) < 0.05:
+            self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
+            self.running_dist_err = 0
+            self.running_angle_err = 0
+
+        delta_x, delta_y = self.get_distances(waypoint, boat_x, boat_y)
+
+        return self.control(boat_angle, delta_x, delta_y, boat_speed, boat_ang_vel)

@@ -90,7 +90,8 @@ class SimpleBoatSim(object):
 
         obs_states = []
         for obs in self.obstacles:
-            obs_states.append([obs.radius, obs.rect.x, obs.rect.y, obs.velocity[0], obs.velocity[1]])
+            obs_latlon = xy_to_latlon(obs.rect.x, obs.rect.y)
+            obs_states.append([obs.radius * SCREEN_WIDTH_M / SCREEN_WIDTH, obs_latlon.lon, obs_latlon.lat, obs.velocity[0], obs.velocity[1]])
         state.append(obs_states)
         # state.append([self.waypoints[self.curr_waypoint].lat, self.waypoints[self.curr_waypoint].lon])
 

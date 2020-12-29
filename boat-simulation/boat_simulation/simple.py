@@ -71,7 +71,9 @@ class SimpleBoatSim(object):
         self.curr_waypoint = -1
 
         self.speed = 0  # m/s
+        self.delta_speed_remaining = 0
         self.angular_speed = 0  # deg/sec
+        self.delta_angular_speed_remaining = 0
         self.angle = 0  # deg
 
         self.real_speed = 0  # m/s
@@ -132,13 +134,29 @@ class SimpleBoatSim(object):
 
         if action.type == 0:
             # self.speed is in meters/sec. Input action value is accel in m/s^2
-            self.speed = self.speed + (VEL_SCALE * action.value)
+            self.delta_speed_remaining += (VEL_SCALE * action.value)
         elif action.type == 1:
             # self.angular_speed is in degrees/sec. Input action value is angular accel in degrees/s^2
-            self.angular_speed += (ANGLE_SCALE * action.value)
+            self.delta_angular_speed_remaining += (ANGLE_SCALE * action.value)
         elif action.type == 2:
-            self.angular_speed += ANGLE_SCALE * action.value[0]
-            self.speed += VEL_SCALE * action.value[1]
+            self.delta_angular_speed_remaining += ANGLE_SCALE * action.value[0]
+            self.delta_speed_remaining += VEL_SCALE * action.value[1]
+
+        speed_step = 0.1
+        angular_speed_step = 3
+        if self.delta_speed_remaining > 0:
+            self.speed += speed_step
+            self.delta_speed_remaining -= speed_step
+        elif self.delta_speed_remaining < 0:
+            self.speed -= speed_step
+            self.delta_speed_remaining += speed_step
+
+        if self.delta_angular_speed_remaining > 0:
+            self.angular_speed += angular_speed_step
+            self.delta_angular_speed_remaining -= angular_speed_step
+        elif self.delta_angular_speed_remaining < 0:
+            self.angular_speed -= angular_speed_step
+            self.delta_angular_speed_remaining += angular_speed_step
 
         # speed is in meters/sec
         intended_boat_dx = VEL_SCALE * self.speed * np.sin(np.deg2rad(self.angle))  # meters/frame
@@ -156,10 +174,7 @@ class SimpleBoatSim(object):
         boat_dx = intended_boat_dx - ocean_current_x  # meters/frame
         boat_dy = intended_boat_dy - ocean_current_y  # meters/frame
 
-        self.apply_drag(boat_dx, boat_dy)
-
-        # boat_dx += drag_dx
-        # boat_dy += drag_dy
+        self.apply_drag()
 
         self.real_speed = np.sqrt(boat_dx ** 2 + boat_dy ** 2) / VEL_SCALE  # meters/sec
 
@@ -271,7 +286,9 @@ class SimpleBoatSim(object):
 
         self.total_time = 0
 
+        self.delta_speed_remaining = 0
         self.speed = 0
+        self.delta_angular_speed_remaining = 0
         self.angular_speed = 0
 
         self.real_speed = 0
@@ -446,10 +463,7 @@ class SimpleBoatSim(object):
 
         return ocean_current_x, ocean_current_y
 
-    def apply_drag(self, boat_dx, boat_dy):
-
-        # speed = np.sqrt(boat_dx ** 2 + boat_dy ** 2) / VEL_SCALE  # m/s
-
+    def apply_drag(self):
         drag_coefficient = 1
         seawater_density = 1026  # kg/m^3
         depth_of_boat_under_water = 0.1  # meters, represents how much of the boat is underwater
@@ -459,11 +473,7 @@ class SimpleBoatSim(object):
 
         drag_accel = drag_force / BOAT_MASS # m/s^2
 
-        print(f"DRAG: {boat_dx}, {boat_dy}, speed={self.speed} --> {drag_accel}")
-
-        # drag_accel *= VEL_SCALE ** 2 # m/frame^2
-
-        # speed_change = drag_accel / VEL_SCALE # m/frame
+        # print(f"DRAG: {boat_dx}, {boat_dy}, speed={self.speed} --> {drag_accel}")
 
         drag_accel *= 0.05
 
@@ -471,18 +481,6 @@ class SimpleBoatSim(object):
             self.speed -= drag_accel * VEL_SCALE
         else:
             self.speed += drag_accel * VEL_SCALE
-
-        # angle_of_movement = np.rad2deg(np.arctan2(boat_dy, -boat_dx)) # 0 radians is at positive x-axis
-        #
-        # drag_dx = -drag_accel * np.cos(np.deg2rad(angle_of_movement))
-        # drag_dy = -drag_accel * np.sin(np.deg2rad(angle_of_movement))
-        #
-        # print(f"DRAG: {boat_dx}, {boat_dy}, speed={speed} --> {drag_dx}, {drag_dy}, angle={angle_of_movement}")
-        #
-        # return drag_dx, drag_dy
-        # return 0, 0
-
-        # return -boat_dx / 3, -boat_dy / 3
 
 
 class Action(object):

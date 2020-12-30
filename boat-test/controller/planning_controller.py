@@ -32,6 +32,12 @@ class PlanningController(BaseController):
 
         self.p_scale = np.array([1.5, 0, 1.5]).reshape(3, 1)
 
+        self.grid_size = 1
+
+        self.start_x = None
+        self.start_y = None
+        self.path = []
+
 
     def get_distances(self, waypoint, boat_x, boat_y):
         x_targ, y_targ = waypoint[0], waypoint[1]
@@ -57,14 +63,13 @@ class PlanningController(BaseController):
 
     def check_intersecting(self, x, y, state):
         boat_x, boat_y, obstacles = state[0], state[1], state[-1]
-        test_pos = LatLon(boat_y, boat_x).add_dist(x, y)
-
+        test_pos = LatLon(self.start_y, self.start_x).add_dist(x, y)
 
         for obs in obstacles:
             obs_pos = (obs[1], obs[2])
-            delta_x, delta_y = self.get_distances(obs_pos, test_pos.lon, test_pos.lat)
+            # delta_x, delta_y = self.get_distances(obs_pos, test_pos.lon, test_pos.lat)
             # print(delta_x, delta_y)
-            if np.sqrt(delta_x**2 + delta_y**2) < obs[0] + BOAT_HEIGHT:
+            if LatLon.dist(LatLon(obs_pos[1], obs_pos[0]), test_pos) < obs[0] + BOAT_HEIGHT:
                 # print("returned true")
                 return True
 
@@ -72,26 +77,38 @@ class PlanningController(BaseController):
 
 
     def next_states(self, delta_x, delta_y, obs, curr_state=[], prev_cost=0, cx=0, cy=0, ox=0, oy=0):
-        dist = np.sqrt((delta_x - cx)**2 + (delta_y - cy)**2)
-        if dist <= 0.5*np.sqrt(2):
-            g = np.sqrt((delta_x - ox)**2 + (delta_y - oy)**2)
-            return [(dist + prev_cost, curr_state + [(delta_x, delta_y)], dist + prev_cost)]
+        x_options = [self.grid_size * ((cx // self.grid_size) + k) for k in [-1, 0, 1]]
+        y_options = [self.grid_size * ((cy // self.grid_size) + k) for k in [-1, 0, 1]]
 
+        # snap curr pos to closest grid point
+        cx = min(x_options, key=lambda x: abs(cx - x))
+        cy = min(y_options, key=lambda y: abs(cy - y))
+
+        dist = np.sqrt((delta_x - cx)**2 + (delta_y - cy)**2)
         out = []
-        options = [-0.5, 0, 0.5]
+
+        if dist <= self.grid_size*np.sqrt(2):
+            # print("here")
+            if not self.check_intersecting(delta_x, delta_y, obs):
+                g = np.sqrt((delta_x - ox)**2 + (delta_y - oy)**2)
+                # print(dist + prev_cost)
+                return [(dist + prev_cost, curr_state + [(delta_x, delta_y)], dist + prev_cost)]
+
+        options = [-self.grid_size, self.grid_size, self.grid_size]
         for o1 in options:
             for o2 in options:
                 if not (o1 == 0 and o2 == 0):
+                    x = o1 + cx
+                    y = o2 + cy
+
                     f = prev_cost + np.sqrt(o1**2 + o2**2)
-
-                    x = cx + o1
-                    y = cy + o2
-
                     g = np.sqrt((delta_x - x)**2 + (delta_y - y)**2)
 
                     tot_cost = f + g
+                    if (x, y) in self.path:
+                        tot_cost = prev_cost
                     if not self.check_intersecting(x, y, obs):
-                        out.append((tot_cost, curr_state + [(x, y)], f))
+                        out.append((tot_cost, curr_state + [(x, y)], prev_cost))
 
         return out
 
@@ -103,16 +120,21 @@ class PlanningController(BaseController):
         return False
 
 
-    def a_star(self, delta_x, delta_y, obs):
-        frontier = self.next_states(delta_x, delta_y, obs)
-        heapq.heapify(frontier)
-        visited = set((0, 0))
+    def a_star(self, start_x, start_y, delta_x, delta_y, obs):
+        if self.check_intersecting(delta_x, delta_y, obs):
+            print("here")
+            return [(start_x, start_y)]
 
-        while True:
-            # print(f"frontier: {frontier}")
+        frontier = self.next_states(delta_x, delta_y, obs, cx=start_x, cy=start_y)
+        heapq.heapify(frontier)
+        visited = set((start_x, start_y))
+
+        while len(frontier) > 0:
             val_new, s_new, f_new = heapq.heappop(frontier)
-            # print(s_new)
             pos_new = s_new[-1]
+
+            # print(f"exploring: {pos_new}")
+
             visited.add(pos_new)
 
             if pos_new[0] == delta_x and pos_new[1] == delta_y:
@@ -130,7 +152,7 @@ class PlanningController(BaseController):
 
     def draw(self, delta_x, delta_y, path, state, path_without=None):
         fig, ax = plt.subplots()
-        grid_res = 0.5
+        grid_res = self.grid_size
 
         ax.plot([0], [0], c='b', marker='o')
         ax.plot([delta_x], [delta_y], c='g', marker='o')
@@ -182,7 +204,7 @@ class PlanningController(BaseController):
     def control(self, boat_angle, delta_x, delta_y, boat_speed, boat_ang_vel):
         boat_angle_deg = np.deg2rad(boat_angle)
         R = np.array([  [-np.sin(boat_angle_deg),   np.cos(boat_angle_deg) ,    0],
-                        [-np.cos(boat_angle_deg),  -np.sin(boat_angle_deg),    0],
+                        [-np.cos(boat_angle_deg),  -np.sin(boat_angle_deg),     0],
                         [0,                         0,                          1]]).reshape((3, 3))
         R_inv = R.T
 
@@ -216,24 +238,37 @@ class PlanningController(BaseController):
             return Action(0, 0)
 
         boat_x, boat_y, boat_speed, _, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
+
         waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
 
-        delta_x, delta_y = self.get_distances(waypoint, boat_x, boat_y)
-        dist = np.sqrt(delta_x**2 + delta_y**2)
+        if self.start_x is None:
+            self.start_x = boat_x
+            self.start_y = boat_y
+
+        delta_x, delta_y = self.get_distances(waypoint, self.start_x, self.start_y)
+        boat_x, boat_y = self.get_distances([boat_x, boat_y], self.start_x, self.start_y)
+
+        dist = np.sqrt((delta_x - boat_x)**2 + (delta_y - boat_y)**2)
 
         if dist < 0.05:
             self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
-            self.running_dist_err = 0
-            self.running_angle_err = 0
+            self.path = [None]
+            self.start_x = None
+            self.start_y = None
+            return Action(0, 0)
 
-        # print(self.next_states(delta_x, delta_y))
-        path_with = self.a_star(delta_x, delta_y, state)
-        # no_obs = []
-        # for k in state:
-        #     no_obs.append(k)
-        # no_obs[-1] = []
-        # path_without = self.a_star(delta_x, delta_y, no_obs)
+        # print(self.next_states(delta_x, delta_y, state))
+        path_with = self.a_star(boat_x, boat_y, delta_x, delta_y, state)
+        # print("done")
+        self.path = path_with
+        # print([f"{round(w[0], 3)} {round(w[1], 3)}" for w in self.path])
+
+        no_obs = []
+        for k in state:
+            no_obs.append(k)
+        no_obs[-1] = []
+        path_without = self.a_star(boat_x, boat_y, delta_x, delta_y, no_obs)
 
         # self.draw(delta_x, delta_y, path_with, state, path_without)
 
-        return self.control(boat_angle, path_with[0][0], path_with[0][1], boat_speed, boat_ang_vel)
+        return self.control(boat_angle, path_with[0][0] - boat_x, path_with[0][1] - boat_y, boat_speed, boat_ang_vel)

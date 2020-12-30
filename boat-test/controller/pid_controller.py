@@ -27,7 +27,7 @@ class PIDController(BaseController):
         self.curr_waypoint = 0
 
         self.p_scale = np.array([1, 0, 1]).reshape(3, 1)
-        self.i_scale = np.array([5e-4, 0, 5e-4]).reshape(3, 1)
+        self.i_scale = np.array([5e-5, 0, 5e-5]).reshape(3, 1)
 
         self.last_dist = None
         self.last_angle = None
@@ -69,7 +69,7 @@ class PIDController(BaseController):
 
         angle = self.get_required_angle_change(boat_angle, delta_x, delta_y)
 
-        err_vec = np.array([self.running_dist_err, 0, self.running_angle_err])
+        err_vec = np.array([self.running_dist_err, 0, self.running_angle_err]).reshape((3, 1))
 
         # print(err_vec)
 

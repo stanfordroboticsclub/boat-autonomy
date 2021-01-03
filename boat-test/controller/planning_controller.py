@@ -38,8 +38,15 @@ class PlanningController(BaseController):
         self.start_y = None
         self.path = []
 
+        self.replot = False
+        self.subgoal_idx = 0
+
 
     def get_distances(self, waypoint, boat_x, boat_y):
+        """
+        Given a LatLon waypoint, a lon boat_x, and a lat boat_y, outputs
+        the delta x and delta y needed to get to the waypoint (signed and in meters)
+        """
         x_targ, y_targ = waypoint[0], waypoint[1]
         x_curr, y_curr = boat_x, boat_y
 
@@ -55,6 +62,10 @@ class PlanningController(BaseController):
 
 
     def get_required_angle_change(self, boat_angle, delta_x, delta_y):
+        """
+        Get the change in angle required to turn to a point delta x and delta y
+        away (delta x and delta y are in meters)
+        """
         angle = (np.arctan2(-delta_x, -delta_y) * 180 / np.pi) - (boat_angle)
         angle = angle % 180
         angle = min(angle, angle - 180, key=abs)
@@ -62,6 +73,10 @@ class PlanningController(BaseController):
 
 
     def check_intersecting(self, x, y, state):
+        """
+        Checks if a point x and y away from LatLon(self.start_y, self.start_x)
+        intersects with any objects
+        """
         boat_x, boat_y, obstacles = state[0], state[1], state[-1]
         test_pos = LatLon(self.start_y, self.start_x).add_dist(x, y)
 
@@ -69,7 +84,7 @@ class PlanningController(BaseController):
             obs_pos = (obs[1], obs[2])
             # delta_x, delta_y = self.get_distances(obs_pos, test_pos.lon, test_pos.lat)
             # print(delta_x, delta_y)
-            if LatLon.dist(LatLon(obs_pos[1], obs_pos[0]), test_pos) < obs[0] + BOAT_HEIGHT:
+            if LatLon.dist(LatLon(obs_pos[1], obs_pos[0]), test_pos) < obs[0] + 1.25*BOAT_HEIGHT:
                 # print("returned true")
                 return True
 
@@ -77,6 +92,13 @@ class PlanningController(BaseController):
 
 
     def next_states(self, delta_x, delta_y, obs, curr_state=[], prev_cost=0, cx=0, cy=0, ox=0, oy=0):
+        """
+        Given a goal to travel delta_x and delta_y, the current observation obs,
+        'curr_state' which keeps track of all (x, y) visited so far, the cost of
+        the previous position, the current position cx and cy, and the 'origin'
+        ox and oy, output the possible positions to travel to next based on
+        self.grid_size.
+        """
         x_options = [self.grid_size * ((cx // self.grid_size) + k) for k in [-1, 0, 1]]
         y_options = [self.grid_size * ((cy // self.grid_size) + k) for k in [-1, 0, 1]]
 
@@ -94,7 +116,7 @@ class PlanningController(BaseController):
                 # print(dist + prev_cost)
                 return [(dist + prev_cost, curr_state + [(delta_x, delta_y)], dist + prev_cost)]
 
-        options = [-self.grid_size, self.grid_size, self.grid_size]
+        options = [-self.grid_size, 0, self.grid_size]
         for o1 in options:
             for o2 in options:
                 if not (o1 == 0 and o2 == 0):
@@ -105,15 +127,20 @@ class PlanningController(BaseController):
                     g = np.sqrt((delta_x - x)**2 + (delta_y - y)**2)
 
                     tot_cost = f + g
-                    if (x, y) in self.path:
-                        tot_cost = prev_cost
+                    # if (x, y) in self.path:
+                    #     tot_cost = prev_cost + g
+                    #     f = prev_cost
                     if not self.check_intersecting(x, y, obs):
-                        out.append((tot_cost, curr_state + [(x, y)], prev_cost))
+                        out.append((tot_cost, curr_state + [(x, y)], f))
 
         return out
 
 
     def frontier_contains(self, frontier, state):
+        """
+        Check if the frontier contains any paths that already go to
+        where the path in 'state' goes to.
+        """
         for k in frontier:
             if k[1][-1] == state[1][-1]:
                 return True
@@ -121,36 +148,71 @@ class PlanningController(BaseController):
 
 
     def a_star(self, start_x, start_y, delta_x, delta_y, obs):
-        if self.check_intersecting(delta_x, delta_y, obs):
-            print("here")
-            return [(start_x, start_y)]
+        """
+        Perform A* search from a starting x and y to a destination x and y
+        while avoiding obstacles seen in the current observation obs.
 
-        frontier = self.next_states(delta_x, delta_y, obs, cx=start_x, cy=start_y)
-        heapq.heapify(frontier)
-        visited = set((start_x, start_y))
+        start_x and start_y are in meters, with the 'origin' being at
+        LatLon(self.start_y, self.start_x)
+        """
+        if self.check_intersecting(delta_x, delta_y, obs):
+            print("obstacle too close to target location")
+            return self.path
+
+        # Compute how much of the path we planned before is still valid
+        valid = []
+        for i in range(0, len(self.path)):
+            pt = self.path[i]
+            if not self.check_intersecting(pt[0], pt[1], obs):
+                valid.append(pt)
+            else:
+                break
+
+        # If we don't need to change anything, just return previous path
+        if len(valid) == len(self.path) and len(valid) != 0:
+            self.replot = False     # The path plotted on the sim doesn't need to change
+            return self.path
+
+        self.replot = True  # There was an issue w/ prev path, so we will need to draw a new one
+
+        if len(valid) != 0:     # If there is something we can use, start from there
+            frontier = self.next_states(delta_x, delta_y, obs, curr_state=valid, cx=valid[-1][0], cy=valid[-1][1])
+            visited = set((valid[-1][0], valid[-1][1]))
+        else:   # If there is nothing we can use, start from start_x, start_y
+            frontier = self.next_states(delta_x, delta_y, obs, curr_state=valid, cx=start_x, cy=start_y)
+            visited = set((start_x, start_y))
+
+        heapq.heapify(frontier)     # Make frontier a priority queue
 
         while len(frontier) > 0:
             val_new, s_new, f_new = heapq.heappop(frontier)
             pos_new = s_new[-1]
 
-            # print(f"exploring: {pos_new}")
+            if pos_new not in visited:
+                if pos_new not in self.path:    # Just to print whenever we are deviating from the previous path
+                    print(f"pos: {(start_x, start_y)}")
+                    print(f"path: {self.path}")
+                    print(f"exploring: {pos_new}")
 
-            visited.add(pos_new)
+                visited.add(pos_new)
 
-            if pos_new[0] == delta_x and pos_new[1] == delta_y:
-                return s_new
+                # We reached the goal location
+                if pos_new[0] == delta_x and pos_new[1] == delta_y:
+                    return s_new
 
-            possible = self.next_states(delta_x, delta_y, obs, s_new, prev_cost=f_new, cx=pos_new[0], cy=pos_new[1])
+                # We haven't reached the goal, so compute all next states we can go to
+                possible = self.next_states(delta_x, delta_y, obs, s_new, prev_cost=f_new, cx=pos_new[0], cy=pos_new[1])
 
-            if len(frontier) == 0 and len(possible) == 0:
-                return s_new
-
-            for k in possible:
-                if k[1][-1] not in visited and not self.frontier_contains(frontier, k):
-                    heapq.heappush(frontier, k)
+                # If we haven't seen the state before, add it to the queue
+                for k in possible:
+                    if k[1][-1] not in visited and not self.frontier_contains(frontier, k):
+                        heapq.heappush(frontier, k)
 
 
     def draw(self, delta_x, delta_y, path, state, path_without=None):
+        """
+        Plots path and obstacles on matplotlib plot.
+        """
         fig, ax = plt.subplots()
         grid_res = self.grid_size
 
@@ -202,6 +264,10 @@ class PlanningController(BaseController):
 
 
     def control(self, boat_angle, delta_x, delta_y, boat_speed, boat_ang_vel):
+        """
+        Get controls needed to steer boat to a particular point.
+        This function is used to follow the path planned using A*
+        """
         boat_angle_deg = np.deg2rad(boat_angle)
         R = np.array([  [-np.sin(boat_angle_deg),   np.cos(boat_angle_deg) ,    0],
                         [-np.cos(boat_angle_deg),  -np.sin(boat_angle_deg),     0],
@@ -229,12 +295,42 @@ class PlanningController(BaseController):
         return Action(2, [control[2][0], control[0][0]])
 
 
+    def select_sub_waypoint(self, path, boat_x, boat_y):
+        """
+        Select which point on the planned path we should try steering
+        the boat to
+        """
+        #
+        # if np.sqrt((path[self.subgoal_idx][0] - boat_x)**2 + (path[self.subgoal_idx][1] - boat_y)**2) < 0.5 and self.subgoal_idx != len(path) - 1:
+        #     self.subgoal_idx += 1
+        #
+        # return path[self.subgoal_idx]
+
+        if len(path) == 0:
+            return (boat_x, boat_y)
+
+        def dist(pt):
+            return np.sqrt((pt[0] - boat_x)**2 + (pt[1] - boat_y)**2)
+        closest_idx = min(range(0, len(path)), key=lambda x: dist(path[x]))
+
+        idx = min(len(path) - 1, closest_idx + 1)
+        return idx
+
+
     # uses ground truth state
     def select_action_from_state(self, env, state):
+        """
+        Main method that performs A* search, selects subgoal to go to,
+        and outputs which actions need to be taken.
+        """
         if self.in_sim:
             env.set_waypoint(self.curr_waypoint)
 
         if env.total_time < 1:
+            self.path = []
+            self.start_x = None
+            self.start_y = None
+            self.subgoal_idx = 0
             return Action(0, 0)
 
         boat_x, boat_y, boat_speed, _, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
@@ -252,23 +348,23 @@ class PlanningController(BaseController):
 
         if dist < 0.05:
             self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
-            self.path = [None]
+            self.path = []
             self.start_x = None
             self.start_y = None
+            self.subgoal_idx = 0
             return Action(0, 0)
 
-        # print(self.next_states(delta_x, delta_y, state))
         path_with = self.a_star(boat_x, boat_y, delta_x, delta_y, state)
-        # print("done")
         self.path = path_with
-        # print([f"{round(w[0], 3)} {round(w[1], 3)}" for w in self.path])
 
-        no_obs = []
-        for k in state:
-            no_obs.append(k)
-        no_obs[-1] = []
-        path_without = self.a_star(boat_x, boat_y, delta_x, delta_y, no_obs)
+        pt_idx = self.select_sub_waypoint(path_with, boat_x, boat_y)
+        pt = path_with[pt_idx]
 
-        # self.draw(delta_x, delta_y, path_with, state, path_without)
 
-        return self.control(boat_angle, path_with[0][0] - boat_x, path_with[0][1] - boat_y, boat_speed, boat_ang_vel)
+        # print(f"path: {[self.start_x, self.start_y] + self.path}")
+
+        if self.replot:
+            path_to_plot = [LatLon(self.start_y, self.start_x).add_dist(boat_x, boat_y)] + [LatLon(self.start_y, self.start_x).add_dist(p[0], p[1]) for p in path_with[pt_idx:]]
+            env.plot_path(path_to_plot)
+
+        return self.control(boat_angle, pt[0] - boat_x, pt[1] - boat_y, boat_speed, boat_ang_vel)

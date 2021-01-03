@@ -88,6 +88,8 @@ class SimpleBoatSim(object):
         self.current_level = current_level
         self.state_mode = state_mode
 
+        self.path_to_plot = None
+
     def get_ground_truth_state(self):
         state = [self.boat_coords.lon, self.boat_coords.lat, self.real_speed, self.angle, self.real_angular_speed]
 
@@ -196,12 +198,16 @@ class SimpleBoatSim(object):
 
         if np.random.uniform() < self.obs_chance and len(self.obstacles) < self.max_obstacles:
             while True:
-                proposed_obstacle = ObstacleSprite(np.random.randint(10, 20),
-                                                   coords=(np.random.uniform(0, SCREEN_WIDTH),
-                                                           np.random.uniform(0, SCREEN_HEIGHT)),
+                ox = np.random.uniform(0, SCREEN_WIDTH)
+                oy = np.random.uniform(0, SCREEN_HEIGHT)
+                r = np.random.randint(10, 20)
+                proposed_obstacle = ObstacleSprite(radius=r,
+                                                   coords=(ox, oy),
                                                    live_counter=np.random.randint(500, 1e3))
-                if not pygame.sprite.collide_rect(proposed_obstacle, self.boat_sprite):
+                if self.waypoint_is_valid(ox, oy, r):
                     break
+                # if not pygame.sprite.collide_rect(proposed_obstacle, self.boat_sprite) and self.waypoint_is_valid(ox, oy, r):
+                #     break
             self.obstacles.add(proposed_obstacle)
 
         # get the new state of the environment
@@ -223,6 +229,22 @@ class SimpleBoatSim(object):
             end_sim = True
 
         return state, 0, end_sim, None
+
+
+    def plot_path(self, path):
+        self.path_to_plot = path
+
+    def waypoint_is_valid(self, x, y, r):
+        obs_latlon = xy_to_latlon(x, y)
+        if LatLon.dist(self.boat_coords, obs_latlon) < 1.5:
+            return False
+
+        for w in self.waypoints:
+            if LatLon.dist(w, obs_latlon) < r*(SCREEN_WIDTH_M / SCREEN_WIDTH) + 1.5:
+                return False
+
+        return True
+
 
     # a and b are vectors in meters
     def proj(self, a, b):  # Project a onto b
@@ -344,6 +366,10 @@ class SimpleBoatSim(object):
         if self.curr_waypoint != -1:
             pygame.draw.circle(self.screen, (207, 106, 72), self.waypoints_xy[self.curr_waypoint], 10)
 
+        if self.path_to_plot is not None:
+            path_xy = [latlon_to_xy(k) for k in self.path_to_plot]
+            pygame.draw.lines(self.screen, (137, 52, 235), False, path_xy, 5)
+
         # print current boat velocity
         font = pygame.font.SysFont(None, 24)
 
@@ -355,6 +381,7 @@ class SimpleBoatSim(object):
         self.screen.blit(vel_text, (20, 20))
         self.screen.blit(ang_vel_text, (20, 50))
         self.screen.blit(ang_text, (20, 80))
+
 
         pygame.display.update()
 

@@ -427,13 +427,14 @@ class SimpleBoatSim(object):
                 pygame.draw.circle(self.screen, (10, 50, 255), (x + ocean_x, y + ocean_y), 5)
 
     def render_voronoi(self):
-
         if self.voronoi_graph is not None:
             for edge in self.voronoi_graph.edges:
                 start = self.voronoi_graph.points[edge[0]]
                 end = self.voronoi_graph.points[edge[1]]
-                pygame.draw.line(self.screen, (137, 52, 235), start, end, 5)
-
+                color = (137, 52, 235)
+                if edge[0] >= len(self.voronoi_graph.points) - 2:
+                    color = (137, 235, 52)
+                pygame.draw.line(self.screen, color, start, end, 5)
 
     def close(self):
         pygame.quit()

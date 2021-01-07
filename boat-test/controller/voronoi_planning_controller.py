@@ -7,9 +7,6 @@ from controller.base_controller import BaseController
 from boat_simulation.simple import Action, latlon_to_xy, BOAT_HEIGHT
 from boat_simulation.latlon import LatLon
 
-import matplotlib.pyplot as plt
-import heapq
-
 VEL_SCALE = 1 / 60
 
 
@@ -43,6 +40,11 @@ class VoronoiPlanningController(BaseController):
 
     def compute_voronoi(self, env):
         obstacle_coords = [obs.curr_coords for obs in env.obstacles]
+        boat_xy = list(latlon_to_xy(env.boat_coords))
+        waypoint_xy = list(latlon_to_xy(env.waypoints[self.curr_waypoint]))
+        obstacle_coords.append(boat_xy)  # boat is always at second-to-last index
+        obstacle_coords.append(waypoint_xy)  # curr waypoint is always at last index
+
         if len(obstacle_coords) < 4:
             return VoronoiGraph([], [])
         # print(obstacle_coords)
@@ -60,9 +62,10 @@ class VoronoiPlanningController(BaseController):
             if edge[0] >= 0 and edge[1] >= 0:
                 start = edge[0]
                 end = edge[1]
-                # edges.append([start, end])
             else:
+                # we need to approximate the unknown vertex
                 if edge[1] < 0:
+                    # always make edge[0] the unknown vertex
                     edge[0], edge[1] = edge[1], edge[0]
 
                 between_pts = vor.ridge_points[i]
@@ -86,16 +89,26 @@ class VoronoiPlanningController(BaseController):
 
             edges.append([start, end])
 
-        print(points)
-        print(edges)
+        points.append(boat_xy)
+        points.append(waypoint_xy)
+
+        # add edges from boat to vertices in its region
+        for i in vor.regions[vor.point_region[len(obstacle_coords) - 2]]:
+            if i >= 0:
+                edges.append([len(points) - 2, i])
+
+        # add edges from waypoint to vertices in its region
+        for i in vor.regions[vor.point_region[len(obstacle_coords) - 1]]:
+            if i >= 0:
+                edges.append([len(points) - 1, i])
+
         return VoronoiGraph(points, edges)
 
     # uses ground truth state
     def select_action_from_state(self, env, state):
-        """
-        Main method that performs A* search, selects subgoal to go to,
-        and outputs which actions need to be taken.
-        """
+        if self.in_sim:
+            env.set_waypoint(self.curr_waypoint)
+
         env.voronoi_graph = self.compute_voronoi(env)
         return Action(0, 0)
 

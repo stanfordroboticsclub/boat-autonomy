@@ -90,13 +90,17 @@ class SimpleBoatSim(object):
 
         self.path_to_plot = None
 
+        self.voronoi_graph = None
+
     def get_ground_truth_state(self):
         state = [self.boat_coords.lon, self.boat_coords.lat, self.real_speed, self.angle, self.real_angular_speed]
 
         obs_states = []
         for obs in self.obstacles:
             obs_latlon = xy_to_latlon(obs.rect.x, obs.rect.y)
-            obs_states.append([obs.radius * SCREEN_WIDTH_M / SCREEN_WIDTH, obs_latlon.lon, obs_latlon.lat, obs.velocity[0], obs.velocity[1]])
+            obs_states.append(
+                [obs.radius * SCREEN_WIDTH_M / SCREEN_WIDTH, obs_latlon.lon, obs_latlon.lat, obs.velocity[0],
+                 obs.velocity[1]])
         state.append(obs_states)
         # state.append([self.waypoints[self.curr_waypoint].lat, self.waypoints[self.curr_waypoint].lon])
 
@@ -230,7 +234,6 @@ class SimpleBoatSim(object):
 
         return state, 0, end_sim, None
 
-
     def plot_path(self, path):
         self.path_to_plot = path
 
@@ -240,11 +243,10 @@ class SimpleBoatSim(object):
             return False
 
         for w in self.waypoints:
-            if LatLon.dist(w, obs_latlon) < r*(SCREEN_WIDTH_M / SCREEN_WIDTH) + 1.5:
+            if LatLon.dist(w, obs_latlon) < r * (SCREEN_WIDTH_M / SCREEN_WIDTH) + 1.5:
                 return False
 
         return True
-
 
     # a and b are vectors in meters
     def proj(self, a, b):  # Project a onto b
@@ -361,6 +363,7 @@ class SimpleBoatSim(object):
             self.render_ocean_currents()
         self.render_boat()
         self.render_obstacles()
+        self.render_voronoi()
 
         # draw waypoint
         if self.curr_waypoint != -1:
@@ -381,7 +384,6 @@ class SimpleBoatSim(object):
         self.screen.blit(vel_text, (20, 20))
         self.screen.blit(ang_vel_text, (20, 50))
         self.screen.blit(ang_text, (20, 80))
-
 
         pygame.display.update()
 
@@ -423,6 +425,15 @@ class SimpleBoatSim(object):
 
                 pygame.draw.line(self.screen, (10, 50, 255), (x, y), (x + ocean_x, y + ocean_y), 3)
                 pygame.draw.circle(self.screen, (10, 50, 255), (x + ocean_x, y + ocean_y), 5)
+
+    def render_voronoi(self):
+
+        if self.voronoi_graph is not None:
+            for edge in self.voronoi_graph.edges:
+                start = self.voronoi_graph.points[edge[0]]
+                end = self.voronoi_graph.points[edge[1]]
+                pygame.draw.line(self.screen, (137, 52, 235), start, end, 5)
+
 
     def close(self):
         pygame.quit()
@@ -485,10 +496,10 @@ class SimpleBoatSim(object):
         # 25 and 15 are magic constants right now
         ocean_current_x = multiplier * np.cos(
             self.ocean_current_a * x + self.ocean_current_b * y + 15 * (
-                        self.current_level / 10) * self.ocean_current_e * self.total_time)
+                    self.current_level / 10) * self.ocean_current_e * self.total_time)
         ocean_current_y = multiplier * np.cos(
             self.ocean_current_c * x + self.ocean_current_d * y + 15 * (
-                        self.current_level / 10) * self.ocean_current_e * self.total_time)
+                    self.current_level / 10) * self.ocean_current_e * self.total_time)
 
         ocean_current_x /= (PIXELS_PER_METER * VEL_SCALE)
         ocean_current_y /= (PIXELS_PER_METER * VEL_SCALE)
@@ -503,7 +514,7 @@ class SimpleBoatSim(object):
 
         drag_force = 0.5 * seawater_density * (self.speed ** 2) * drag_coefficient * cross_section_area  # Newtons
 
-        drag_accel = drag_force / BOAT_MASS # m/s^2
+        drag_accel = drag_force / BOAT_MASS  # m/s^2
 
         # print(f"DRAG: {boat_dx}, {boat_dy}, speed={self.speed} --> {drag_accel}")
 

@@ -91,6 +91,7 @@ class SimpleBoatSim(object):
         self.path_to_plot = None
 
         self.voronoi_graph = None
+        self.voronoi_path = None
 
     def get_ground_truth_state(self):
         state = [self.boat_coords.lon, self.boat_coords.lat, self.real_speed, self.angle, self.real_angular_speed]
@@ -437,6 +438,14 @@ class SimpleBoatSim(object):
                     if i >= len(self.voronoi_graph.points) - 2 or j >= len(self.voronoi_graph.points) - 2:
                         color = (137, 235, 52)
                     pygame.draw.line(self.screen, color, start, end, 5)
+
+            if self.voronoi_path is not None:
+                path_points = []
+                for i in self.voronoi_path:
+                    path_points.append(self.voronoi_graph.points[i])
+
+                color = (255, 255, 255)
+                pygame.draw.lines(self.screen, color, False, path_points, 5)
 
     def close(self):
         pygame.quit()

@@ -1,3 +1,4 @@
+import heapq
 from collections import defaultdict
 
 import numpy as np
@@ -117,12 +118,61 @@ class VoronoiPlanningController(BaseController):
 
         return VoronoiGraph(points, edges)
 
+    def compute_shortest_path(self, graph):
+        if len(graph.points) < 2:
+            return 1e9, None
+
+        # start index is at boat, second-to-last point
+        start = len(graph.points) - 2
+
+        # end index is at waypoint, last point
+        end = len(graph.points) - 1
+
+        visited = [False] * len(graph.points)
+        parent = [-1] * len(graph.points)
+        dist = [1e9] * len(graph.points)
+
+        dist[start] = 0
+        parent[start] = start
+
+        q = [(0, start)]
+        heapq.heapify(q)
+
+        while len(q) > 0:
+            curr_dist, curr_point = heapq.heappop(q)
+            if not visited[curr_point]:
+                visited[curr_point] = True
+                if curr_point == end:
+                    break
+
+                for neighbor in graph.edges[curr_point]:
+                    if visited[neighbor]:
+                        continue
+                    new_dist = curr_dist + graph.edges[curr_point][neighbor]
+                    if new_dist < dist[neighbor]:
+                        dist[neighbor] = new_dist
+                        parent[neighbor] = curr_point
+                        heapq.heappush(q, (new_dist, neighbor))
+
+        path = [end]
+        curr = end
+        while curr != start:
+            curr = parent[curr]
+            path.append(curr)
+
+        path.reverse()
+
+        return dist[end], path
+
     # uses ground truth state
     def select_action_from_state(self, env, state):
         if self.in_sim:
             env.set_waypoint(self.curr_waypoint)
 
         env.voronoi_graph = self.compute_voronoi(env)
+        _, path = self.compute_shortest_path(env.voronoi_graph)
+        env.voronoi_path = path
+
         return Action(0, 0)
 
 

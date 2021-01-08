@@ -51,7 +51,7 @@ def xy_to_latlon(x, y):
 class SimpleBoatSim(object):
     """boat simulation"""
 
-    def __init__(self, max_obstacles=10, obs_chance=5e-1, current_level=1, state_mode="ground_truth"):
+    def __init__(self, max_obstacles=10, obs_chance=5e-2, current_level=1, state_mode="ground_truth"):
         super(SimpleBoatSim, self).__init__()
 
         print(f"TOP_LEFT_LATLON: {TOP_LEFT_LATLON}")
@@ -203,8 +203,7 @@ class SimpleBoatSim(object):
                 r = np.random.randint(10, 20)
                 proposed_obstacle = ObstacleSprite(radius=r,
                                                    coords=(ox, oy),
-                                                   live_counter=np.random.randint(60*100, 60*100 + 1),
-                                                   velocity=[0, 0])
+                                                   live_counter=np.random.randint(500, 1e3))
                 if self.waypoint_is_valid(ox, oy, r):
                     break
                 # if not pygame.sprite.collide_rect(proposed_obstacle, self.boat_sprite) and self.waypoint_is_valid(ox, oy, r):

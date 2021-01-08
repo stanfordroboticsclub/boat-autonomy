@@ -428,13 +428,15 @@ class SimpleBoatSim(object):
 
     def render_voronoi(self):
         if self.voronoi_graph is not None:
-            for edge in self.voronoi_graph.edges:
-                start = self.voronoi_graph.points[edge[0]]
-                end = self.voronoi_graph.points[edge[1]]
-                color = (137, 52, 235)
-                if edge[0] >= len(self.voronoi_graph.points) - 2:
-                    color = (137, 235, 52)
-                pygame.draw.line(self.screen, color, start, end, 5)
+            for i in range(len(self.voronoi_graph.points)):
+                for j in self.voronoi_graph.edges[i]:
+                    start = self.voronoi_graph.points[i]
+                    end = self.voronoi_graph.points[j]
+                    color = (137, 52, 235)
+
+                    if i >= len(self.voronoi_graph.points) - 2 or j >= len(self.voronoi_graph.points) - 2:
+                        color = (137, 235, 52)
+                    pygame.draw.line(self.screen, color, start, end, 5)
 
     def close(self):
         pygame.quit()

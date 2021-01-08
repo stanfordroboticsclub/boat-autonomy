@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 import pygame
 
@@ -38,6 +40,9 @@ class VoronoiPlanningController(BaseController):
         self.replot = False
         self.subgoal_idx = 0
 
+    def dist(self, a, b):
+        return np.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
+
     def compute_voronoi(self, env):
         obstacle_coords = [obs.curr_coords for obs in env.obstacles]
         boat_xy = list(latlon_to_xy(env.boat_coords))
@@ -47,14 +52,15 @@ class VoronoiPlanningController(BaseController):
 
         if len(obstacle_coords) < 4:
             return VoronoiGraph([], [])
-        # print(obstacle_coords)
 
         vor = Voronoi(obstacle_coords)
 
         center = vor.points.mean(axis=0)
 
         points = vor.vertices.tolist()
-        edges = []
+
+        # edges = [[] for i in range(len(points)+10)]
+        edges = defaultdict(dict)
 
         for i in range(len(vor.ridge_vertices)):
             edge = vor.ridge_vertices[i]
@@ -82,12 +88,15 @@ class VoronoiPlanningController(BaseController):
                 direction = np.sign(np.dot(midpoint - center, n)) * n
 
                 endpt = vor.vertices[edge[1]] + direction * 1000
+                endpt = endpt.tolist()
                 points.append(endpt)
 
                 start = edge[1]
                 end = len(points) - 1
 
-            edges.append([start, end])
+            d = self.dist(points[start], points[end])
+            edges[start][end] = d
+            edges[end][start] = d
 
         points.append(boat_xy)
         points.append(waypoint_xy)
@@ -95,12 +104,16 @@ class VoronoiPlanningController(BaseController):
         # add edges from boat to vertices in its region
         for i in vor.regions[vor.point_region[len(obstacle_coords) - 2]]:
             if i >= 0:
-                edges.append([len(points) - 2, i])
+                d = self.dist(points[len(points) - 2], points[i])
+                edges[len(points) - 2][i] = d
+                edges[i][len(points) - 2] = d
 
         # add edges from waypoint to vertices in its region
         for i in vor.regions[vor.point_region[len(obstacle_coords) - 1]]:
             if i >= 0:
-                edges.append([len(points) - 1, i])
+                d = self.dist(points[len(points) - 1], points[i])
+                edges[len(points) - 1][i] = d
+                edges[i][len(points) - 1] = d
 
         return VoronoiGraph(points, edges)
 
@@ -116,4 +129,4 @@ class VoronoiPlanningController(BaseController):
 class VoronoiGraph(object):
     def __init__(self, points, edges):
         self.points = points
-        self.edges = edges
+        self.edges = edges  # represented as adjacency list

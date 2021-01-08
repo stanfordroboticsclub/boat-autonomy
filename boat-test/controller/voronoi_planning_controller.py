@@ -32,35 +32,35 @@ class VoronoiPlanningController(BaseController):
 
         self.p_scale = np.array([1.5, 0, 1.5]).reshape(3, 1)
 
-        self.grid_size = 1
-
-        self.start_x = None
-        self.start_y = None
         self.path = []
+        self.voronoi_graph = None
 
-        self.replot = False
-        self.subgoal_idx = 0
 
     def dist(self, a, b):
         return np.sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2)
 
-    def compute_voronoi(self, env):
-        obstacle_coords = [obs.curr_coords for obs in env.obstacles]
-        boat_xy = list(latlon_to_xy(env.boat_coords))
-        waypoint_xy = list(latlon_to_xy(env.waypoints[self.curr_waypoint]))
-        obstacle_coords.append(boat_xy)  # boat is always at second-to-last index
-        obstacle_coords.append(waypoint_xy)  # curr waypoint is always at last index
+    def compute_voronoi(self, obstacles, boat_latlon, waypoint_latlon):
+        obstacles_xy = []
+        for obs in obstacles:
+            obs_latlon = LatLon(obs[2], obs[1])
+            obstacles_xy.append(list(latlon_to_xy(obs_latlon)))
 
-        if len(obstacle_coords) < 4:
+        boat_xy = list(latlon_to_xy(boat_latlon))
+        waypoint_xy = list(latlon_to_xy(waypoint_latlon))
+
+        voronoi_points = obstacles_xy  # obstacle LatLon objects
+        voronoi_points.append(boat_xy)  # boat is always at second-to-last index
+        voronoi_points.append(waypoint_xy)  # curr waypoint is always at last index
+
+        if len(voronoi_points) < 4:
             return VoronoiGraph([], [])
 
-        vor = Voronoi(obstacle_coords)
+        vor = Voronoi(voronoi_points)
 
         center = vor.points.mean(axis=0)
 
         points = vor.vertices.tolist()
 
-        # edges = [[] for i in range(len(points)+10)]
         edges = defaultdict(dict)
 
         for i in range(len(vor.ridge_vertices)):
@@ -103,14 +103,14 @@ class VoronoiPlanningController(BaseController):
         points.append(waypoint_xy)
 
         # add edges from boat to vertices in its region
-        for i in vor.regions[vor.point_region[len(obstacle_coords) - 2]]:
+        for i in vor.regions[vor.point_region[len(voronoi_points) - 2]]:
             if i >= 0:
                 d = self.dist(points[len(points) - 2], points[i])
                 edges[len(points) - 2][i] = d
                 edges[i][len(points) - 2] = d
 
         # add edges from waypoint to vertices in its region
-        for i in vor.regions[vor.point_region[len(obstacle_coords) - 1]]:
+        for i in vor.regions[vor.point_region[len(voronoi_points) - 1]]:
             if i >= 0:
                 d = self.dist(points[len(points) - 1], points[i])
                 edges[len(points) - 1][i] = d
@@ -164,16 +164,94 @@ class VoronoiPlanningController(BaseController):
 
         return dist[end], path
 
+    def get_required_angle_change(self, boat_angle, delta_x, delta_y):
+        """
+        Get the change in angle required to turn to a point delta x and delta y
+        away (delta x and delta y are in meters)
+        """
+        angle = (np.arctan2(-delta_x, -delta_y) * 180 / np.pi) - (boat_angle)
+        angle = angle % 180
+        angle = min(angle, angle - 180, key=abs)
+        return angle
+
+    def control(self, boat_angle, delta_x, delta_y, boat_speed, boat_ang_vel):
+        """
+        Get controls needed to steer boat to a particular point.
+        This function is used to follow the path planned using A*
+        """
+        print(f"delta_x: {delta_x},  delta_y: {delta_y}")
+
+        boat_angle_deg = np.deg2rad(boat_angle)
+        R = np.array([  [-np.sin(boat_angle_deg),   np.cos(boat_angle_deg) ,    0],
+                        [-np.cos(boat_angle_deg),  -np.sin(boat_angle_deg),     0],
+                        [0,                         0,                          1]]).reshape((3, 3))
+        R_inv = R.T
+
+        angle = self.get_required_angle_change(boat_angle, delta_x, delta_y)
+
+        eta_d = np.array([delta_x, delta_y, angle]).reshape((3, 1))
+
+        targ_v = self.p_scale * np.matmul(R_inv, eta_d)
+        curr_v = np.array([boat_speed, 0, boat_ang_vel]).reshape((3, 1))
+        diff_v = targ_v - curr_v
+
+        control = self.p_scale * diff_v
+        control[2][0] = np.rad2deg(control[2][0])
+        control = np.clip(control, np.array([-self.a_max, 0, -self.max_alpha_mag]).reshape(3, 1), np.array([self.a_max, 0, self.max_alpha_mag]).reshape(3, 1))
+
+        dist = np.sqrt((delta_x ** 2) + (delta_y ** 2))
+
+        # print(f"self.running_dist_err: {self.running_dist_err}, self.running_angle_err: {self.running_angle_err}")
+        if self.print_info:
+            pass
+            # print(f"dist: {round(dist, 5)},  curr_vel: {round(boat_speed, 5)}, accel: {round(control[0][0], 5)}, alpha: {round(control[2][0], 5)}")
+
+        return Action(2, [control[2][0], control[0][0]])
+
     # uses ground truth state
     def select_action_from_state(self, env, state):
+        """
+        Main method that calculates Voronoi diagram, finds shortest path,
+        and outputs which actions need to be taken.
+        """
         if self.in_sim:
             env.set_waypoint(self.curr_waypoint)
 
-        env.voronoi_graph = self.compute_voronoi(env)
-        _, path = self.compute_shortest_path(env.voronoi_graph)
-        env.voronoi_path = path
+        if env.total_time < 1:
+            self.path = []
+            env.voronoi_graph = None
+            env.voronoi_path = None
+            return Action(0, 0)
 
-        return Action(0, 0)
+        boat_x, boat_y, boat_speed, _, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
+
+        boat_latlon = LatLon(boat_y, boat_x)
+        waypoint_laton = env.waypoints[self.curr_waypoint]
+
+        dist = LatLon.dist(boat_latlon, waypoint_laton)
+
+        if dist < 0.05:
+            self.curr_waypoint = (self.curr_waypoint + 1) % len(env.waypoints)
+            self.path = None
+            return Action(0, 0)
+
+        self.voronoi_graph = self.compute_voronoi(obstacles, boat_latlon, waypoint_laton)
+        _, self.path = self.compute_shortest_path(self.voronoi_graph)
+
+        env.voronoi_graph = self.voronoi_graph
+        env.voronoi_path = self.path
+
+        if self.path is None:
+            return Action(0, 0)
+
+        target_point = self.voronoi_graph.points[self.path[1]]
+        boat_xy = list(latlon_to_xy(boat_latlon))
+
+        print(f"target_point: {target_point}")
+        print(f"boat:         {boat_xy}")
+
+        return self.control(boat_angle, target_point[0] - boat_xy[0], target_point[1] - boat_xy[1], boat_speed, boat_ang_vel)
+        # return Action(0,0)
 
 
 class VoronoiGraph(object):

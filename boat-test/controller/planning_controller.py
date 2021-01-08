@@ -41,6 +41,8 @@ class PlanningController(BaseController):
         self.replot = False
         self.subgoal_idx = 0
 
+        self.delta_t = 0.5
+
 
     def get_distances(self, waypoint, boat_x, boat_y):
         """
@@ -84,7 +86,7 @@ class PlanningController(BaseController):
             obs_pos = (obs[1], obs[2])
             # delta_x, delta_y = self.get_distances(obs_pos, test_pos.lon, test_pos.lat)
             # print(delta_x, delta_y)
-            if LatLon.dist(LatLon(obs_pos[1], obs_pos[0]), test_pos) < obs[0] + 1.25*BOAT_HEIGHT:
+            if LatLon.dist(LatLon(obs_pos[1], obs_pos[0]), test_pos) < obs[0] + 2*BOAT_HEIGHT:
                 # print("returned true")
                 return True
 
@@ -307,7 +309,7 @@ class PlanningController(BaseController):
         # return path[self.subgoal_idx]
 
         if len(path) == 0:
-            return (boat_x, boat_y)
+            return -1
 
         def dist(pt):
             return np.sqrt((pt[0] - boat_x)**2 + (pt[1] - boat_y)**2)
@@ -358,7 +360,9 @@ class PlanningController(BaseController):
         self.path = path_with
 
         pt_idx = self.select_sub_waypoint(path_with, boat_x, boat_y)
-        pt = path_with[pt_idx]
+        pt = (boat_x, boat_y)
+        if pt_idx != -1:
+            pt = path_with[pt_idx]
 
 
         # print(f"path: {[self.start_x, self.start_y] + self.path}")

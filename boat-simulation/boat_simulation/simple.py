@@ -51,7 +51,7 @@ def xy_to_latlon(x, y):
 class SimpleBoatSim(object):
     """boat simulation"""
 
-    def __init__(self, max_obstacles=10, obs_chance=5e-2, current_level=1, state_mode="ground_truth"):
+    def __init__(self, max_obstacles=10, obs_chance=5e-1, current_level=1, state_mode="ground_truth"):
         super(SimpleBoatSim, self).__init__()
 
         print(f"TOP_LEFT_LATLON: {TOP_LEFT_LATLON}")
@@ -145,8 +145,8 @@ class SimpleBoatSim(object):
             self.delta_angular_speed_remaining += ANGLE_SCALE * action.value[0]
             self.delta_speed_remaining += VEL_SCALE * action.value[1]
 
-        speed_step = 0.1
-        angular_speed_step = 3
+        speed_step = abs(self.delta_speed_remaining)
+        angular_speed_step = abs(self.delta_angular_speed_remaining)
         if self.delta_speed_remaining > 0:
             self.speed += speed_step
             self.delta_speed_remaining -= speed_step
@@ -177,7 +177,7 @@ class SimpleBoatSim(object):
         boat_dx = intended_boat_dx - ocean_current_x  # meters/frame
         boat_dy = intended_boat_dy - ocean_current_y  # meters/frame
 
-        self.apply_drag()
+        # self.apply_drag()
 
         self.real_speed = np.sqrt(boat_dx ** 2 + boat_dy ** 2) / VEL_SCALE  # meters/sec
 
@@ -203,7 +203,8 @@ class SimpleBoatSim(object):
                 r = np.random.randint(10, 20)
                 proposed_obstacle = ObstacleSprite(radius=r,
                                                    coords=(ox, oy),
-                                                   live_counter=np.random.randint(500, 1e3))
+                                                   live_counter=np.random.randint(60*100, 60*100 + 1),
+                                                   velocity=[0, 0])
                 if self.waypoint_is_valid(ox, oy, r):
                     break
                 # if not pygame.sprite.collide_rect(proposed_obstacle, self.boat_sprite) and self.waypoint_is_valid(ox, oy, r):
@@ -236,11 +237,11 @@ class SimpleBoatSim(object):
 
     def waypoint_is_valid(self, x, y, r):
         obs_latlon = xy_to_latlon(x, y)
-        if LatLon.dist(self.boat_coords, obs_latlon) < 1.5:
+        if LatLon.dist(self.boat_coords, obs_latlon) < 2:
             return False
 
         for w in self.waypoints:
-            if LatLon.dist(w, obs_latlon) < r*(SCREEN_WIDTH_M / SCREEN_WIDTH) + 1.5:
+            if LatLon.dist(w, obs_latlon) < r*(SCREEN_WIDTH_M / SCREEN_WIDTH) + 2:
                 return False
 
         return True

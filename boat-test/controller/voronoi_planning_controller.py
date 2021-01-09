@@ -102,6 +102,15 @@ class VoronoiPlanningController(BaseController):
         points.append(boat_xy)
         points.append(waypoint_xy)
 
+        # if the boat and waypoint regions border each other, add a connecting edge
+        for edge in vor.ridge_points:
+            p1 = edge[0]
+            p2 = edge[1]
+            if min(p1, p2) == len(vor.points) - 2 and max(p1, p2) == len(vor.points) - 1:
+                d = self.dist(vor.points[p1], vor.points[p2])
+                edges[len(points) - 2][len(points) - 1] = d
+                edges[len(points) - 1][len(points) - 2] = d
+
         # add edges from boat to vertices in its region
         for i in vor.regions[vor.point_region[len(voronoi_points) - 2]]:
             if i >= 0:
@@ -179,7 +188,6 @@ class VoronoiPlanningController(BaseController):
         Get controls needed to steer boat to a particular point.
         This function is used to follow the path planned using A*
         """
-        print(f"delta_x: {delta_x},  delta_y: {delta_y}")
 
         boat_angle_deg = np.deg2rad(boat_angle)
         R = np.array([  [-np.sin(boat_angle_deg),   np.cos(boat_angle_deg) ,    0],
@@ -203,8 +211,7 @@ class VoronoiPlanningController(BaseController):
 
         # print(f"self.running_dist_err: {self.running_dist_err}, self.running_angle_err: {self.running_angle_err}")
         if self.print_info:
-            pass
-            # print(f"dist: {round(dist, 5)},  curr_vel: {round(boat_speed, 5)}, accel: {round(control[0][0], 5)}, alpha: {round(control[2][0], 5)}")
+            print(f"dist: {round(dist, 5)},  curr_vel: {round(boat_speed, 5)}, accel: {round(control[0][0], 5)}, alpha: {round(control[2][0], 5)}")
 
         return Action(2, [control[2][0], control[0][0]])
 
@@ -246,9 +253,6 @@ class VoronoiPlanningController(BaseController):
 
         target_point = self.voronoi_graph.points[self.path[1]]
         boat_xy = list(latlon_to_xy(boat_latlon))
-
-        print(f"target_point: {target_point}")
-        print(f"boat:         {boat_xy}")
 
         return self.control(boat_angle, target_point[0] - boat_xy[0], target_point[1] - boat_xy[1], boat_speed, boat_ang_vel)
         # return Action(0,0)

@@ -7,14 +7,16 @@ from controller.complementary_filter import ComplementaryFilterController
 from controller.minimal_controller import MinimalController
 from controller.scipy_opt_controller import ScipyOptController
 from controller.scipy_logging_controller import ScipyLoggingController
-from controller.xy_controller import XYController
+from controller.pid_controller import PIDController
 from controller.slsqp_controller import SLSQPController
+from controller.planning_controller import PlanningController
+from controller.control_planner import ControlPlanner
 
 import argparse
 
 
 def parse_args():
-    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller", "scipy_logging", "scipy_opt", "xy", "slsqp"]
+    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller", "scipy_logging", "scipy_opt", "pid", "slsqp", "planning", "c_planning"]
     state_modes = ["ground_truth", "noisy", "sensor"]
 
     parser = argparse.ArgumentParser(description='Run the boat simulation.')
@@ -26,8 +28,11 @@ def parse_args():
                         default=10)
     parser.add_argument('--state_mode', '-sm', help="Choose the representation of the simulation state available to the boat",
                         choices=state_modes, default=state_modes[0])
-    parser.add_argument('--no_render', '-nr', help="Set this flag in order to render the simulation",
+    parser.add_argument('--no_render', '-nr', help="Set this flag to true to disable rendering the simulation",
                         action="store_true", default=False)
+    parser.add_argument('--no_drag', '-nd', help="Set this flag to true to disable drag forces",
+                        action="store_true", default=False)
+
     args = parser.parse_args()
     return args
 
@@ -40,7 +45,7 @@ def format_state(state, env):
 
 def main():
     args = parse_args()
-    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles))
+    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles), apply_drag_forces=(not bool(args.no_drag)))
     state = env.reset()
 
     controller = None
@@ -56,10 +61,14 @@ def main():
         controller = ScipyLoggingController()
     elif args.controller == "scipy_opt":
         controller = ScipyOptController()
-    elif args.controller == "xy":
-        controller = XYController()
+    elif args.controller == "pid":
+        controller = PIDController()
     elif args.controller == "slsqp":
         controller = SLSQPController()
+    elif args.controller == "planning":
+        controller = PlanningController()
+    elif args.controller == "c_planning":
+        controller = ControlPlanner()
 
     print("Instantiated controller:", controller.name)
 

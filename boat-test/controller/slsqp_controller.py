@@ -10,8 +10,8 @@ from boat_simulation.latlon import LatLon
 
 # Boat is modelled as a rod with two thrusters on each end
 class SLSQPController(BaseController):
-    def __init__(self, in_sim=True):
-        BaseController.__init__(self, "Minimal controller for autonomy", in_sim)
+    def __init__(self, in_sim=True, print_info=True):
+        BaseController.__init__(self, "slsqp", in_sim)
         self.in_sim = in_sim
 
         self.f_max = 50
@@ -23,6 +23,8 @@ class SLSQPController(BaseController):
 
         self.curr_waypoint = 0
 
+        self.print_info = print_info
+
         self.last_a = 0
         self.last_alpha = 0
 
@@ -30,6 +32,11 @@ class SLSQPController(BaseController):
         self.accumulator = 0
         self.a_rate = 50
         self.a_constant = 5e-6
+
+        self.vel_penalty = 7.5e-4
+        self.ang_vel_penalty = 7.5e-4
+
+        self.last_state = None
 
 
     def compute_objective_theoretical(self, input, currPos, targPos, theta_i, ang_vel, v_i, v_cx, v_cy, t=1):
@@ -50,7 +57,10 @@ class SLSQPController(BaseController):
 
         delta_y_tot = integrate.quad(delta_y, 0, t)[0]
 
-        return LatLon.dist(currPos.add_dist(delta_x_tot, delta_y_tot), targPos) ** 2
+        final_ang_vel = ang_vel + alpha*t
+        final_speed = v_i + a * t
+
+        return LatLon.dist(currPos.add_dist(delta_x_tot, delta_y_tot), targPos)**2 + self.ang_vel_penalty*np.abs(final_ang_vel) + self.vel_penalty*np.abs(final_speed)
 
 
     def compute_objective(self, input, currPos, targPos, theta_i, ang_vel, v_i, v_cx, v_cy, t=1):
@@ -73,7 +83,10 @@ class SLSQPController(BaseController):
         delta_x_tot = -(0.5*a*t**2 + v_i*t)*np.sin(np.deg2rad(theta_final)) + v_cx*t
         delta_y_tot = -(0.5*a*t**2 + v_i*t)*np.cos(np.deg2rad(theta_final)) + v_cy*t
 
-        return (delta_x + delta_x_tot)**2 + (delta_y + delta_y_tot)**2
+        final_ang_vel = ang_vel + alpha*t
+        final_speed = v_i + a * t
+
+        return (delta_x + delta_x_tot)**2 + (delta_y + delta_y_tot)**2 + self.ang_vel_penalty*np.abs(final_ang_vel) + self.vel_penalty*np.abs(final_speed)
         # return 100 * LatLon.dist(currPos.add_dist(delta_x_tot, delta_y_tot), targPos)
 
 
@@ -112,17 +125,89 @@ class SLSQPController(BaseController):
         out = solved.x
 
         # out = guess
-
-        print(f"dist: {round(LatLon.dist(currPos, targPos), 5)},  curr_vel: {round(v_i, 5)}, accel: {round(out[0], 5)}, alpha: {round(out[1], 5)}, init alpha: {guess[1]}, t: {round(t, 5)}")
+        if self.print_info:
+            print(f"dist: {round(LatLon.dist(currPos, targPos), 5)},  curr_vel: {round(v_i, 5)}, accel: {round(out[0], 5)}, alpha: {round(out[1], 5)}, init alpha: {guess[1]}, t: {round(t, 5)}")
 
         return out
 
 
-    def estimate_currents(self, env, state):
-        boat_x, boat_y = state[0], state[1]
-        ocean_current_x, ocean_current_y = env.compute_ocean_current(LatLon(boat_y, boat_x))
+    def estimate_currents_theoretical(self, state, print_current_info=False):
+        if self.last_state is None:
+            return 0, 0
 
-        return ocean_current_x, ocean_current_y
+        boat_x, boat_y, _, boat_speed, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
+        old_boat_x, old_boat_y, _, old_boat_speed, old_boat_angle, old_boat_ang_vel, old_ocean_current_x, old_ocean_current_y, old_obstacles = self.last_state
+
+        # where should we have gone?
+        t = 1/60
+
+        def theta(time):
+            return old_boat_angle + old_boat_ang_vel * time + .5 * self.last_alpha * (time**2)
+
+        # handle x first
+        def delta_x(time):
+            return -(old_boat_speed + self.last_a * time) * np.sin(np.deg2rad(theta(time)))
+
+        delta_x_tot = integrate.quad(delta_x, 0, t)[0]
+
+        def delta_y(time):
+            return -(old_boat_speed + self.last_a * time) * np.cos(np.deg2rad(theta(time)))
+
+        delta_y_tot = integrate.quad(delta_y, 0, t)[0]
+
+        predicted = LatLon(old_boat_y, old_boat_x).add_dist(delta_x_tot, delta_y_tot)
+        err_x = LatLon.dist(predicted, LatLon(predicted.lat, boat_x))
+
+        if predicted.lon > boat_x:
+            err_x *= -1
+
+        err_y = LatLon.dist(predicted, LatLon(boat_y, predicted.lon))
+
+        if predicted.lat > boat_y:
+            err_y *= -1
+
+        curr_x, curr_y = err_x / t, err_y / t
+        # curr_x, curr_y = 0 / t, 0 / t
+
+        if print_current_info:
+            print(f"estimate: {(curr_x, curr_y)}, truth: {(ocean_current_x, ocean_current_y)}, err: {(100*(curr_x - ocean_current_x), 100*(curr_y - ocean_current_y))}")
+
+        return curr_x, curr_y
+
+
+    def estimate_currents(self, state, print_current_info=False):
+        if self.last_state is None:
+            return 0, 0
+
+        boat_x, boat_y, _, boat_speed, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
+        old_boat_x, old_boat_y, _, old_boat_speed, old_boat_angle, old_boat_ang_vel, old_ocean_current_x, old_ocean_current_y, old_obstacles = self.last_state
+
+        # where should we have gone?
+        t = 1/60
+
+        theta_final = old_boat_angle + old_boat_ang_vel * t + .5 * self.last_alpha * (t**2)
+
+        delta_x_tot = -(0.5*self.last_a*t**2 + old_boat_speed*t)*np.sin(np.deg2rad(theta_final))
+        delta_y_tot = -(0.5*self.last_a*t**2 + old_boat_speed*t)*np.cos(np.deg2rad(theta_final))
+
+        predicted = LatLon(old_boat_y, old_boat_x).add_dist(delta_x_tot, delta_y_tot)
+        err_x = LatLon.dist(predicted, LatLon(predicted.lat, boat_x))
+
+        if predicted.lon > boat_x:
+            err_x *= -1
+
+        err_y = LatLon.dist(predicted, LatLon(boat_y, predicted.lon))
+
+        if predicted.lat > boat_y:
+            err_y *= -1
+
+        curr_x, curr_y = err_x / t, err_y / t
+        # curr_x, curr_y = 0 / t, 0 / t
+
+        if print_current_info:
+            print(f"estimate: {(curr_x, curr_y)}, truth: {(ocean_current_x, ocean_current_y)}, err: {(100*(curr_x - ocean_current_x), 100*(curr_y - ocean_current_y))}")
+
+        return curr_x, curr_y
 
 
     # uses ground truth state
@@ -133,7 +218,8 @@ class SLSQPController(BaseController):
         # if env.total_time < 1:
         #     return Action(0, 0)
 
-        boat_x, boat_y, _, boat_speed, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
+        boat_x, boat_y, boat_speed, _, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
+        ocean_current_x, ocean_current_y = self.estimate_currents_theoretical(state)
 
         waypoint = [env.waypoints[self.curr_waypoint].lon, env.waypoints[self.curr_waypoint].lat]
         dist = LatLon.dist(LatLon(boat_y, boat_x), LatLon(waypoint[1], waypoint[0]))
@@ -152,5 +238,7 @@ class SLSQPController(BaseController):
         self.last_alpha = control[1]
 
         self.last_dist = dist
+
+        self.last_state = state
 
         return Action(2, [control[1], control[0]])

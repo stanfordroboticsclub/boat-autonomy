@@ -7,8 +7,10 @@ from controller.complementary_filter import ComplementaryFilterController
 from controller.minimal_controller import MinimalController
 from controller.scipy_opt_controller import ScipyOptController
 from controller.scipy_logging_controller import ScipyLoggingController
-from controller.xy_controller import XYController
+from controller.pid_controller import PIDController
 from controller.slsqp_controller import SLSQPController
+from controller.planning_controller import PlanningController
+from controller.control_planner import ControlPlanner
 
 from multiprocessing import Process, Pipe
 
@@ -20,7 +22,7 @@ import time
 
 
 def parse_args():
-    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller", "scipy_logging", "scipy_opt", "xy", "slsqp"]
+    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller", "scipy_logging", "scipy_opt", "pid", "slsqp", "planning", "c_planning"]
     state_modes = ["ground_truth", "noisy", "sensor"]
 
     parser = argparse.ArgumentParser(description='Run the boat simulation.')
@@ -32,7 +34,9 @@ def parse_args():
                         default=10)
     parser.add_argument('--state_mode', '-sm', help="Choose the representation of the simulation state available to the boat",
                         choices=state_modes, default=state_modes[0])
-    parser.add_argument('--no_render', '-nr', help="Set this flag in order to render the simulation",
+    parser.add_argument('--no_render', '-nr', help="Set this flag to true to disable rendering the simulation",
+                        action="store_true", default=False)
+    parser.add_argument('--no_drag', '-nd', help="Set this flag to true to disable drag forces",
                         action="store_true", default=False)
     args = parser.parse_args()
     return args
@@ -65,7 +69,7 @@ def simulation(args, controller_conn):
     an instance of the SimpleBoatSim class, repeatedly publishes state
     information and receives actions taken by the boat.
     """
-    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles))
+    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles), apply_drag_forces=(not bool(args.no_drag)))
     state = env.reset()
 
     env.set_waypoints(controller_conn.recv())
@@ -114,10 +118,14 @@ def controller(args, simulation_conn, radio_conn):
         controller = ScipyLoggingController(in_sim=False)
     elif args.controller == "scipy_opt":
         controller = ScipyOptController(in_sim=False)
-    elif args.controller == "xy":
-        controller = XYController(in_sim=False)
     elif args.controller == "slsqp":
         controller = SLSQPController(in_sim=False)
+    elif args.controller == "pid":
+        controller = PIDController(in_sim=False)
+    elif args.controller == "planning":
+        controller = PlanningController(in_sim=False)
+    elif args.controller == "c_planning":
+        controller = ControlPlanner(in_sim=False)
 
     waypoints = radio_conn.recv()
     simulation_conn.send(waypoints)

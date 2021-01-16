@@ -14,7 +14,7 @@ PIXELS_PER_METER = 30
 # Boat is modelled as a rod with two thrusters on each end
 class PIDController(BaseController):
     def __init__(self, in_sim=True, print_info=True):
-        BaseController.__init__(self, "pid")
+        BaseController.__init__(self, "pid", handle_quit=False)
         self.in_sim = in_sim
 
         self.f_max = 50
@@ -117,8 +117,8 @@ class PIDController(BaseController):
         if self.in_sim:
             env.set_waypoint(self.curr_waypoint)
 
-        if env.total_time < 1:
-            return Action(0, 0)
+        # if env.total_time < 1:
+        #     return Action(0, 0)
 
         boat_x, boat_y, boat_speed, _, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
 

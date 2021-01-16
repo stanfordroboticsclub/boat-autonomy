@@ -16,7 +16,7 @@ VEL_SCALE = 1/60
 # Boat is modelled as a rod with two thrusters on each end
 class PlanningController(BaseController):
     def __init__(self, in_sim=True, print_info=True):
-        BaseController.__init__(self, "planning")
+        BaseController.__init__(self, "planning", handle_quit=False)
         self.in_sim = in_sim
 
         self.f_max = 50
@@ -356,13 +356,13 @@ class PlanningController(BaseController):
         if self.in_sim:
             env.set_waypoint(self.curr_waypoint)
 
-        if env.total_time < 1:
-            self.path = []
-            self.start_lon = None
-            self.start_lat = None
-            self.subgoal_idx = 0
-            self.last_subgoal_idx = 0
-            return Action(0, 0)
+        # if env.total_time < 1:
+        #     self.path = []
+        #     self.start_lon = None
+        #     self.start_lat = None
+        #     self.subgoal_idx = 0
+        #     self.last_subgoal_idx = 0
+        #     return Action(0, 0)
 
         boat_x, boat_y, boat_speed, _, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
 
@@ -407,7 +407,7 @@ class PlanningController(BaseController):
 
         # print(f"path: {[self.start_lon, self.start_lat] + self.path}")
 
-        if self.replot and len(path_with) > 0:
+        if self.replot and len(path_with) > 0 and self.in_sim:
             path_to_plot = [LatLon(self.start_lat, self.start_lon).add_dist(boat_x, boat_y)] + [LatLon(self.start_lat, self.start_lon).add_dist(p[0], p[1]) for p in path_with[pt_idx:]]
             env.plot_path(path_to_plot)
 

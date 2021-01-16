@@ -28,8 +28,11 @@ def parse_args():
                         default=10)
     parser.add_argument('--state_mode', '-sm', help="Choose the representation of the simulation state available to the boat",
                         choices=state_modes, default=state_modes[0])
-    parser.add_argument('--no_render', '-nr', help="Set this flag in order to render the simulation",
+    parser.add_argument('--no_render', '-nr', help="Set this flag to true to disable rendering the simulation",
                         action="store_true", default=False)
+    parser.add_argument('--no_drag', '-nd', help="Set this flag to true to disable drag forces",
+                        action="store_true", default=False)
+
     args = parser.parse_args()
     return args
 
@@ -42,7 +45,7 @@ def format_state(state, env):
 
 def main():
     args = parse_args()
-    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles))
+    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles), apply_drag_forces=(not bool(args.no_drag)))
     state = env.reset()
 
     controller = None

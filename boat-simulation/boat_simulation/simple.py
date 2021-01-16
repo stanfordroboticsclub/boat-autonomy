@@ -51,7 +51,7 @@ def xy_to_latlon(x, y):
 class SimpleBoatSim(object):
     """boat simulation"""
 
-    def __init__(self, max_obstacles=10, obs_chance=5e-2, current_level=1, state_mode="ground_truth"):
+    def __init__(self, max_obstacles=10, obs_chance=5e-2, current_level=1, state_mode="ground_truth", apply_drag_forces=True):
         super(SimpleBoatSim, self).__init__()
 
         print(f"TOP_LEFT_LATLON: {TOP_LEFT_LATLON}")
@@ -89,6 +89,7 @@ class SimpleBoatSim(object):
         self.state_mode = state_mode
 
         self.path_to_plot = None
+        self.apply_drag_forces = apply_drag_forces
 
     def get_ground_truth_state(self):
         state = [self.boat_coords.lon, self.boat_coords.lat, self.real_speed, self.angle, self.real_angular_speed]
@@ -145,8 +146,13 @@ class SimpleBoatSim(object):
             self.delta_angular_speed_remaining += ANGLE_SCALE * action.value[0]
             self.delta_speed_remaining += VEL_SCALE * action.value[1]
 
-        speed_step = abs(self.delta_speed_remaining)
-        angular_speed_step = abs(self.delta_angular_speed_remaining)
+        if self.apply_drag_forces:
+            speed_step = 0.1
+            angular_speed_step = 3
+        else:
+            speed_step = abs(self.delta_speed_remaining)
+            angular_speed_step = abs(self.delta_angular_speed_remaining)
+
         if self.delta_speed_remaining > 0:
             self.speed += speed_step
             self.delta_speed_remaining -= speed_step
@@ -177,7 +183,8 @@ class SimpleBoatSim(object):
         boat_dx = intended_boat_dx - ocean_current_x  # meters/frame
         boat_dy = intended_boat_dy - ocean_current_y  # meters/frame
 
-        # self.apply_drag()
+        if self.apply_drag_forces:
+            self.apply_drag()
 
         self.real_speed = np.sqrt(boat_dx ** 2 + boat_dy ** 2) / VEL_SCALE  # meters/sec
 
@@ -350,6 +357,8 @@ class SimpleBoatSim(object):
 
     def render(self):
         """Repeatedly call this function in your loop if you want to visualize the simulation"""
+
+        pygame.event.get()
 
         if self.screen is None:
             self.screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])

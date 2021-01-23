@@ -30,7 +30,7 @@ class VoronoiPlanningController(BaseController):
 
         self.print_info = print_info
 
-        self.p_scale = np.array([1.5, 0, 1.5]).reshape(3, 1)
+        self.p_scale = np.array([0.10, 0, 1.5]).reshape(3, 1)
 
         self.path = []
         self.voronoi_graph = None

@@ -446,6 +446,8 @@ class SimpleBoatSim(object):
 
                     if i >= len(self.voronoi_graph.points) - 2 or j >= len(self.voronoi_graph.points) - 2:
                         color = (137, 235, 52)
+                    start = np.clip(start, -1000, 1000)
+                    end = np.clip(end, -1000, 1000)
                     pygame.draw.line(self.screen, color, start, end, 5)
 
             if self.voronoi_path is not None:

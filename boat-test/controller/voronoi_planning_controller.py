@@ -30,7 +30,7 @@ class VoronoiPlanningController(BaseController):
 
         self.print_info = print_info
 
-        self.p_scale = np.array([0.10, 0, 1.5]).reshape(3, 1)
+        self.p_scale = np.array([0.25, 0, 1.5]).reshape(3, 1)
 
         self.path = []
         self.voronoi_graph = None
@@ -173,6 +173,16 @@ class VoronoiPlanningController(BaseController):
 
         return dist[end], path
 
+    def compute_distance_to_closest_obstacle(self, boat_latlon, obstacles):
+        min_dist = None
+        for obs in obstacles:
+            obs_latlon = LatLon(obs[2], obs[1])
+            dist = LatLon.dist(obs_latlon, boat_latlon)
+            if min_dist is None or dist < min_dist:
+                min_dist = dist
+
+        return min_dist
+
     def get_required_angle_change(self, boat_angle, delta_x, delta_y):
         """
         Get the change in angle required to turn to a point delta x and delta y
@@ -183,11 +193,15 @@ class VoronoiPlanningController(BaseController):
         angle = min(angle, angle - 180, key=abs)
         return angle
 
-    def control(self, boat_angle, delta_x, delta_y, boat_speed, boat_ang_vel):
+    def control(self, boat_angle, delta_x, delta_y, boat_speed, boat_ang_vel, min_dist_to_obs):
         """
         Get controls needed to steer boat to a particular point.
         This function is used to follow the path planned using A*
         """
+        modified_p_scale = np.copy(self.p_scale)
+        modified_p_scale[0][0] *= 1 / min_dist_to_obs
+
+        print(self.p_scale, modified_p_scale[0][0])
 
         boat_angle_deg = np.deg2rad(boat_angle)
         R = np.array([  [-np.sin(boat_angle_deg),   np.cos(boat_angle_deg) ,    0],
@@ -199,11 +213,11 @@ class VoronoiPlanningController(BaseController):
 
         eta_d = np.array([delta_x, delta_y, angle]).reshape((3, 1))
 
-        targ_v = self.p_scale * np.matmul(R_inv, eta_d)
+        targ_v = modified_p_scale * np.matmul(R_inv, eta_d)
         curr_v = np.array([boat_speed, 0, boat_ang_vel]).reshape((3, 1))
         diff_v = targ_v - curr_v
 
-        control = self.p_scale * diff_v
+        control = modified_p_scale * diff_v
         control[2][0] = np.rad2deg(control[2][0])
         control = np.clip(control, np.array([-self.a_max, 0, -self.max_alpha_mag]).reshape(3, 1), np.array([self.a_max, 0, self.max_alpha_mag]).reshape(3, 1))
 
@@ -211,7 +225,8 @@ class VoronoiPlanningController(BaseController):
 
         # print(f"self.running_dist_err: {self.running_dist_err}, self.running_angle_err: {self.running_angle_err}")
         if self.print_info:
-            print(f"dist: {round(dist, 5)},  curr_vel: {round(boat_speed, 5)}, accel: {round(control[0][0], 5)}, alpha: {round(control[2][0], 5)}")
+            pass
+            # print(f"dist: {round(dist, 5)},  curr_vel: {round(boat_speed, 5)}, accel: {round(control[0][0], 5)}, alpha: {round(control[2][0], 5)}")
 
         return Action(2, [control[2][0], control[0][0]])
 
@@ -254,7 +269,9 @@ class VoronoiPlanningController(BaseController):
         target_point = self.voronoi_graph.points[self.path[1]]
         boat_xy = list(latlon_to_xy(boat_latlon))
 
-        return self.control(boat_angle, target_point[0] - boat_xy[0], target_point[1] - boat_xy[1], boat_speed, boat_ang_vel)
+        min_dist_to_obs = self.compute_distance_to_closest_obstacle(boat_latlon, obstacles)
+
+        return self.control(boat_angle, target_point[0] - boat_xy[0], target_point[1] - boat_xy[1], boat_speed, boat_ang_vel, min_dist_to_obs)
         # return Action(0,0)
 
 

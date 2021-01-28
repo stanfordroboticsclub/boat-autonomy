@@ -31,7 +31,7 @@ class SETestController(BaseController):
 
         # boat_x, boat_y, boat_speed, _, boat_angle, boat_ang_vel, ocean_current_x, ocean_current_y, obstacles = state
         # print(state)
-        omega, theta_m = state
+        boat_x, boat_y, boat_speed, omega, theta_m, boat_ang_vel, obstacles = state
 
         self.complementary_filter.update_magnetometer(theta_m)
         self.complementary_filter.update_gyro(omega)

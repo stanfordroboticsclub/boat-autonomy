@@ -3,7 +3,6 @@ from boat_simulation.latlon import LatLon
 
 from controller.keyboard_controller import KeyboardController
 from controller.autonomy_controller_template import AutonomyControllerTemplate
-from controller.complementary_filter import ComplementaryFilterController
 from controller.minimal_controller import MinimalController
 from controller.scipy_opt_controller import ScipyOptController
 from controller.scipy_logging_controller import ScipyLoggingController

@@ -127,8 +127,17 @@ class SimpleBoatSim(object):
 
     def get_sensor_observation(self, d_theta, ang_vel_noise=.5, heading_noise=1):
         # [gyro angular velocity (deg/s), magnetometer heading (degrees)]
-        return [ang_vel_noise * np.random.uniform(-1, 1) + d_theta / (1 / 60),
+        truth = self.get_ground_truth_state()
+
+        orientation_sensors = [ang_vel_noise * np.random.uniform(-1, 1) + d_theta / (1 / 60),
                 heading_noise * np.random.uniform(-1, 1) + self.angle]
+
+        state = truth[0:3]
+        state += orientation_sensors
+        state.append(orientation_sensors[0])
+        state += truth[5:]
+
+        return state
 
     def step(self, action):
         """

@@ -12,12 +12,14 @@ from controller.slsqp_controller import SLSQPController
 from controller.planning_controller import PlanningController
 from controller.voronoi_planning_controller import VoronoiPlanningController
 from controller.control_planner import ControlPlanner
+from controller.state_estimation_test import SETestController
 
 import argparse
 
 
 def parse_args():
-    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller", "scipy_logging", "scipy_opt", "pid", "slsqp", "planning", "voronoi_planning", "c_planning"]
+    controller_arg_names = ["keyboard", "autonomy_template", "complementary_filter_test", "minimal_controller", "scipy_logging",
+        "scipy_opt", "pid", "slsqp", "planning", "voronoi_planning", "c_planning", "se_test"]
     state_modes = ["ground_truth", "noisy", "sensor"]
 
     parser = argparse.ArgumentParser(description='Run the boat simulation.')
@@ -38,7 +40,9 @@ def parse_args():
     return args
 
 
-def format_state(state, env):
+def format_state(args, state, env):
+    if args.state_mode == "sensor":
+        return state
     boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
     currents = env.compute_ocean_current(LatLon(boat_y, boat_x))
     return boat_x, boat_y, boat_speed, env.speed, boat_angle, boat_ang_vel, currents[0], currents[1], obstacles
@@ -72,11 +76,13 @@ def main():
         controller = VoronoiPlanningController()
     elif args.controller == "c_planning":
         controller = ControlPlanner()
+    elif args.controller == "se_test":
+        controller = SETestController()
 
     print("Instantiated controller:", controller.name)
 
     while True:
-        action = controller.choose_action(env, format_state(state, env))
+        action = controller.choose_action(env, format_state(args, state, env))
         state, _, end_sim, _ = env.step(action)
 
         if not args.no_render:

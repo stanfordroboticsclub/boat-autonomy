@@ -418,7 +418,10 @@ class SimpleBoatSim(object):
                 obs.kill()
 
         for obs in self.obstacles:
-            obs.curr_coords = (obs.curr_coords[0] + obs.velocity[0], obs.curr_coords[1] + obs.velocity[1])
+            ocean_current_x, ocean_current_y = self.compute_ocean_current(xy_to_latlon(obs.curr_coords[0], obs.curr_coords[1]))
+            dx = PIXELS_PER_METER * ocean_current_x * 0.03
+            dy = PIXELS_PER_METER * ocean_current_y * 0.03
+            obs.curr_coords = (obs.curr_coords[0] + dx, obs.curr_coords[1] + dy)
             obs.rect = obs.surf.get_rect(center=(obs.curr_coords[0], obs.curr_coords[1]))
             self.screen.blit(obs.surf, (obs.rect.x, obs.rect.y))
 

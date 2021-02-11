@@ -65,5 +65,4 @@ class Robot(object):
         packets = [msg[252*i: min(len(msg), i + 252)] for i in range(1 + (len(msg) // 252))]
         for p in packets:
             if p != "":
-                print(f"{p}, {len(p.encode('utf-8'))}")
-                # rfm9x.send(bytes(p, "utf-8"))
+                self.radio.send(bytes(p, "utf-8"))

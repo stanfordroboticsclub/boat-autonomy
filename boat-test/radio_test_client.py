@@ -13,8 +13,14 @@ def base_station_run(radio_conn):
 
     while True:
         if last_published is None or time() - last_published >= SEND_MSG_INTERVAL:
-            radio_conn.send("Hello, can you hear me?")
+            msg = bytes("Hello, can you hear me?", "utf-8")
+            packets = [msg[252*i: min(len(msg), i + 252)] for i in range(1 + (len(msg) // 252))]
+            for p in packets:
+                if p != b'':
+                    radio_conn.send(p)
             last_published = time()
+        if radio_conn.poll():
+            print(radio_conn.recv())
 
 
 def robot_run(radio):

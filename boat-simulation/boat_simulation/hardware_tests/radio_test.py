@@ -14,6 +14,7 @@ RADIO_FREQ_MHZ = 433.0
 # RESET = digitalio.DigitalInOut(board.D25)
 
 PUBLISH_INTERVAL = 1
+TIMEOUT = 1
 
 class Robot(object):
     """use robot instead of simple to run on actual robot"""
@@ -45,24 +46,56 @@ class Robot(object):
 
 
     def publish_status(self):
-        self.transmit_message("just vibing")
+        self.transmit_message(f"just vibing")
 
 
     def receive_waypoints(self):
-        received = self.receive_packet()
+        received = self.receive_msg()
+        if len(received) != 0: print(f"Received station msg: {received}")
         if received is not None:
             self.waypoints = received
 
 
     def receive_packet(self):
         packet = self.radio.receive()
-        if (packet is not None): print(f"Received (raw bytes): {packet}")
         return packet
+
+
+    def process_packet(self, packet):
+        processed = b''
+        for byte in packet:
+            byte = bytes([byte])
+            if byte == b'\4':  # EOT
+                return processed, True
+            else:
+                processed += byte
+        return processed, False
+
+
+    def receive_msg(self):
+        bytes = b''
+        curr_t = time()
+
+        while True:
+            if time() - curr_t > TIMEOUT:
+                print("TIMEOUT")
+                bytes = b''
+                break
+
+            packet = self.receive_packet()
+
+            if packet is not None:
+                new_bytes, eot = self.process_packet(packet)
+                bytes += new_bytes
+                curr_t = time()
+                if eot: break
+
+        return bytes
 
 
     def transmit_message(self, msg):
         # split into packets of 252 bytes
-        packets = [msg[252*i: min(len(msg), i + 252)] for i in range(1 + (len(msg) // 252))]
+        packets = [msg[252*i: min(len(msg), 252*i + 252)] for i in range(1 + (len(msg) // 252))]
         for p in packets:
             if p != "":
                 self.radio.send(bytes(p, "utf-8"))

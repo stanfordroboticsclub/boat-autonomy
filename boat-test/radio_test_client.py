@@ -13,7 +13,7 @@ def base_station_run(radio_conn):
 
     while True:
         if last_published is None or time() - last_published >= SEND_MSG_INTERVAL:
-            msg = bytes(" ".join(["Hello, can you hear me?" for i in range(20)]), "utf-8")
+            msg = bytes(" ".join(["Hello, can you hear me?" for i in range(1)]), "utf-8")
             msg += b'\4'
             packets = [msg[252*i: min(len(msg), 252*i + 252)] for i in range(1 + (len(msg) // 252))]
             for p in packets:
@@ -21,7 +21,14 @@ def base_station_run(radio_conn):
                     radio_conn.send(p)
             last_published = time()
         if radio_conn.poll():
-            print(f"Received robot status: {radio_conn.recv()}")
+            received_packet = radio_conn.recv()
+
+            for k in range(2, len(received_packet)):
+                if received_packet[k] == 0:
+                    break
+
+            received_data = received_packet[2: k]
+            print(f"Received robot status: {received_data}")
 
 
 def robot_run(radio):

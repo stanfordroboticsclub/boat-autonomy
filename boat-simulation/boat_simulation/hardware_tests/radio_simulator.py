@@ -37,8 +37,8 @@ class RadioManager(object):
     def msg_to_packets(self, msg, data_size=250):
         msg = bytes(msg, "utf-8")
 
-        # pad to a multiple of 250
-        msg = msg + bytes([0 for i in range(250 - (len(msg) % 250))])
+        # pad to a multiple of data_size
+        msg = msg + bytes([0 for i in range(data_size - (len(msg) % data_size))])
 
         sub_msgs = [msg[data_size*i: min(len(msg), data_size*i + data_size)] for i in range(1 + (len(msg) // data_size))]
         if sub_msgs[-1] == b'': sub_msgs.pop(len(sub_msgs)-1)

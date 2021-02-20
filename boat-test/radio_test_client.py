@@ -1,6 +1,6 @@
 from boat_simulation.hardware_tests.radio_test import Robot
 from multiprocessing import Process, Pipe
-from boat_simulation.hardware_tests.radio_simulator import RadioSim
+from boat_simulation.hardware_tests.radio_simulator import RadioSim, RadioManager
 
 from time import sleep, time
 
@@ -11,23 +11,20 @@ SEND_MSG_INTERVAL = 0.5
 def base_station_run(radio_conn):
     last_published = None
 
+    # just to get utils to send/receive msgs as packets
+    radio_manager = RadioManager(RadioSim(radio_conn))
+
     while True:
         if last_published is None or time() - last_published >= SEND_MSG_INTERVAL:
-            msg = bytes(" ".join(["Hello, can you hear me?" for i in range(1)]), "utf-8")
-            msg += b'\4'
-            packets = [msg[252*i: min(len(msg), 252*i + 252)] for i in range(1 + (len(msg) // 252))]
-            for p in packets:
-                if p != b'':
-                    radio_conn.send(p)
+            msg = " ".join(["Hello can you hear me?" for i in range(12)])
+
+            radio_manager.transmit_message(msg)
             last_published = time()
-        if radio_conn.poll():
-            received_packet = radio_conn.recv()
 
-            for k in range(2, len(received_packet)):
-                if received_packet[k] == 0:
-                    break
+        received_packet = radio_manager.receive_packet()
 
-            received_data = received_packet[2: k]
+        if received_packet is not None:
+            received_data = radio_manager.extract_packet_data(received_packet)
             print(f"Received robot status: {received_data}")
 
 

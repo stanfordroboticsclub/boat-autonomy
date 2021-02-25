@@ -3,9 +3,18 @@ from multiprocessing import Process, Pipe
 from boat_simulation.hardware_tests.radio_simulator import RadioSim, RadioManager
 
 from time import sleep, time
+import argparse
 
 
 SEND_MSG_INTERVAL = 0.5
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Args for radio test.')
+    parser.add_argument('--robot', '-r', help="Set this flag to true if running on robot",
+                        action="store_true", default=False)
+    args = parser.parse_args()
+    return args
 
 
 def base_station_run(radio_conn):
@@ -33,6 +42,31 @@ def robot_run(radio):
     robot.run()
 
 
+def robot_main():
+    print("RUNNING ON ROBOT")
+
+    import digitalio
+    import board
+    import busio
+    import adafruit_rfm9x
+
+    # blindly copied from example code
+    # likely needs to be modified to correspond to actual wiring
+    RADIO_FREQ_MHZ = 433.0
+    CS = digitalio.DigitalInOut(board.CE1)
+    RESET = digitalio.DigitalInOut(board.D25)
+
+    spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+    # Initialze RFM radio
+    radio = adafruit_rfm9x.RFM9x(spi, CS, RESET, RADIO_FREQ_MHZ)
+
+    radio.tx_power = 23
+
+    robot = Robot(radio=radio)
+
+    robot.run()
+
+
 def main():
     base_station_conn, radio_conn = Pipe()
     radio = RadioSim(base_station_conn)
@@ -47,4 +81,9 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+
+    if args.robot:
+        robot_main()
+    else:
+        main()

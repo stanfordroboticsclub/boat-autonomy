@@ -1,7 +1,7 @@
 import numpy as np
 from time import sleep, time
 from boat_simulation.latlon import LatLon
-from boat_simulation.hardware_tests.radio_simulator import RadioManager
+from boat_simulation.hardware_tests.radio import RadioManager
 
 import digitalio
 # import board

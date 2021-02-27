@@ -1,6 +1,6 @@
 from boat_simulation.hardware_tests.radio_test import Robot
 from multiprocessing import Process, Pipe
-from boat_simulation.hardware_tests.radio_simulator import RadioSim, RadioManager
+from boat_simulation.hardware_tests.radio import RadioSim, RadioManager
 
 from time import sleep, time
 import argparse

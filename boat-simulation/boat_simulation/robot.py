@@ -14,9 +14,11 @@ RECEIVE_INTERVAL = 15 * 60  # checks for new waypoints every RECEIVE_INTERVAL se
 class Robot(object):
     """use robot instead of simple to run on actual robot"""
 
-    def __init__(self, state_estimator, controller, sim=True, base_station_conn=None):
+    def __init__(self, state_estimator, controller, sim=True, base_station_conn=None, args=None):
         super(Robot, self).__init__()
         self.sim = sim
+        self.sim_env = None
+        self.args = args
 
         self.state_estimator = state_estimator
         self.controller = controller
@@ -33,12 +35,16 @@ class Robot(object):
 
 
     def sim_init(self, base_station_conn):
+        from boat_simulation.simple import SimpleBoatSim
         from boat_simulation.hardware_tests.radio import RadioSim
         from boat_simulation.hardware_tests.sensors import SensorManager
 
+        self.sim_env = SimpleBoatSim(current_level=int(self.args.current_level), state_mode=self.args.state_mode,
+            max_obstacles=int(self.args.max_obstacles), apply_drag_forces=(not bool(self.args.no_drag)))
+
         radio = RadioSim(base_station_conn)
         self.radio_manager = RadioManager(radio, timeout=TIMEOUT)
-        self.sensor_manager = SensorManager()
+        self.sensor_manager = SensorManager(sim=True, sim_env=self.sim_env)
 
 
     def robot_init(self):
@@ -64,15 +70,6 @@ class Robot(object):
         return [0, 0]
 
 
-    def get_raw_state(self):
-        readings = self.sensor_manager.get_sensor_readings()
-        currents = self.estimate_currents()
-        # final [] represents 0 obstacles
-        state = [readings["lon"], readings["lat"], readings["speed"], self.set_speed,
-            readings["angle"], readings["angular_speed"], []]
-        return state
-
-
     def execute_action(self, action):
         pass
 
@@ -85,12 +82,19 @@ class Robot(object):
         received = self.radio_manager.receive_msg()
 
 
-    def run():
-        while True:
-            raw_state = self.get_raw_state()
-            processed_state = self.state_estimator.estimate(raw_state)
+    def format_state(self, state):
+        boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
+        currents = self.estimate_currents()
+        return boat_x, boat_y, boat_speed, boat_speed, boat_angle, boat_ang_vel, currents[0], currents[1], obstacles
 
-            action = self.controller.choose_action(env, processed_state)
+
+    def run(self):
+        while True:
+            raw_state = self.sensor_manager.get_sensor_readings()
+            processed_state = self.format_state(self.state_estimator.estimate(raw_state))
+
+            # sim_env shouldn't be used in controller, so it's fine to pass it
+            action = self.controller.choose_action(self.sim_env, processed_state)
             self.execute_action(action)
 
             if self.last_published is None or time() - self.last_published > PUBLISH_INTERVAL:

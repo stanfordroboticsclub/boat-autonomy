@@ -41,6 +41,7 @@ class Robot(object):
 
         self.sim_env = SimpleBoatSim(current_level=int(self.args.current_level), state_mode=self.args.state_mode,
             max_obstacles=int(self.args.max_obstacles), apply_drag_forces=(not bool(self.args.no_drag)))
+        self.sim_env.reset()
 
         radio = RadioSim(base_station_conn)
         self.radio_manager = RadioManager(radio, timeout=TIMEOUT)
@@ -93,7 +94,7 @@ class Robot(object):
             raw_state = self.sensor_manager.get_sensor_readings()
             processed_state = self.format_state(self.state_estimator.estimate(raw_state))
 
-            # sim_env shouldn't be used in controller, so it's fine to pass it
+            # BIG PROBLEM HERE: CONTROLLER RELIES ON SIM ENV TO SELECT ACTION
             action = self.controller.choose_action(self.sim_env, processed_state)
             self.execute_action(action)
 
@@ -104,3 +105,6 @@ class Robot(object):
             if self.last_received is None or time() - self.last_received > RECEIVE_INTERVAL:
                 self.receive_waypoints()
                 self.last_received = time()
+
+            if self.sim and not self.args.no_render:
+                self.sim_env.render()

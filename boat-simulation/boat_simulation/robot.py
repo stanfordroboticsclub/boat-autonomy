@@ -2,8 +2,8 @@ import numpy as np
 from time import time
 
 from boat_simulation.latlon import LatLon
-from boat_simulation.hardware_tests.radio import RadioManager
-from boat_simulation.hardware_tests.sensors import SensorManager
+from boat_simulation.managers.radio import RadioManager
+from boat_simulation.managers.sensors import SensorManager
 
 
 TIMEOUT = 1                 # timeout for receiving new waypoints
@@ -35,8 +35,8 @@ class Robot(object):
 
     def sim_init(self, base_station_conn):
         from boat_simulation.simple import SimpleBoatSim
-        from boat_simulation.hardware_tests.radio import RadioSim
-        from boat_simulation.hardware_tests.sensors import SensorManager
+        from boat_simulation.managers.radio import RadioSim
+        from boat_simulation.managers.sensors import SensorManager
 
         self.sim_env = SimpleBoatSim(current_level=int(self.args.current_level), state_mode=self.args.state_mode,
             max_obstacles=int(self.args.max_obstacles), apply_drag_forces=(not bool(self.args.no_drag)))

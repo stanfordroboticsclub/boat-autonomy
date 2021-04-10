@@ -1,6 +1,6 @@
 from boat_simulation.latlon import LatLon
 from boat_simulation.robot import Robot
-from boat_simulation.hardware_tests.radio import RadioSim, RadioManager
+from boat_simulation.managers.radio import RadioSim, RadioManager
 
 from time import sleep, time
 import argparse

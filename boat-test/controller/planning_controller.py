@@ -185,10 +185,10 @@ class PlanningController(BaseController):
             pos_new = s_new[-1]
 
             if pos_new not in visited:
-                if pos_new not in self.path:    # Just to print whenever we are deviating from the previous path
-                    print(f"pos: {(start_x, start_y)}")
-                    print(f"path: {self.path}")
-                    print(f"exploring: {pos_new}")
+                # if pos_new not in self.path:    # Just to print whenever we are deviating from the previous path
+                    # print(f"pos: {(start_x, start_y)}")
+                    # print(f"path: {self.path}")
+                    # print(f"exploring: {pos_new}")
 
                 visited.add(pos_new)
 

@@ -1,5 +1,10 @@
-from boat_simulation.simple import SimpleBoatSim
 from boat_simulation.latlon import LatLon
+from boat_simulation.robot import Robot
+from boat_simulation.managers.radio import RadioSim, RadioManager
+
+from time import sleep, time
+import argparse
+from multiprocessing import Process, Pipe
 
 from controller.keyboard_controller import KeyboardController
 from controller.autonomy_controller_template import AutonomyControllerTemplate
@@ -13,7 +18,10 @@ from controller.voronoi_planning_controller import VoronoiPlanningController
 from controller.control_planner import ControlPlanner
 from controller.state_estimation_test import SETestController
 
-import argparse
+from state_estimators.base_estimator import IdentityEstimator
+from state_estimators.complementary_filter import ComplementaryFilter
+
+SEND_MSG_INTERVAL = 0.5
 
 
 def parse_args():
@@ -21,7 +29,9 @@ def parse_args():
         "scipy_opt", "pid", "slsqp", "planning", "voronoi_planning", "c_planning", "se_test"]
     state_modes = ["ground_truth", "noisy", "sensor"]
 
-    parser = argparse.ArgumentParser(description='Run the boat simulation.')
+    parser = argparse.ArgumentParser(description='Args for hardware test.')
+    parser.add_argument('--robot', '-r', help="Set this flag to true if running on robot",
+                        action="store_true", default=False)
     parser.add_argument('--controller', '-c', help="Choose the name of the controller to use",
                         choices=controller_arg_names, default=controller_arg_names[0])
     parser.add_argument('--current_level', '-cl', help="Choose the intensity of currents in the simulation in cm/s",
@@ -29,7 +39,7 @@ def parse_args():
     parser.add_argument('--max_obstacles', '-mo', help="Choose the maximum number of obstacles on screen at any time",
                         default=10)
     parser.add_argument('--state_mode', '-sm', help="Choose the representation of the simulation state available to the boat",
-                        choices=state_modes, default=state_modes[0])
+                        choices=state_modes, default=state_modes[2])
     parser.add_argument('--no_render', '-nr', help="Set this flag to true to disable rendering the simulation",
                         action="store_true", default=False)
     parser.add_argument('--no_drag', '-nd', help="Set this flag to true to disable drag forces",
@@ -39,18 +49,60 @@ def parse_args():
     return args
 
 
-def format_state(args, state, env):
-    if args.state_mode == "sensor":
-        return state
-    boat_x, boat_y, boat_speed, boat_angle, boat_ang_vel, obstacles = state
-    currents = env.compute_ocean_current(LatLon(boat_y, boat_x))
-    return boat_x, boat_y, boat_speed, env.speed, boat_angle, boat_ang_vel, currents[0], currents[1], obstacles
+def base_station_run(radio_conn):
+    last_published = None
+
+    # just to get utils to send/receive msgs as packets
+    radio_manager = RadioManager(RadioSim(radio_conn))
+
+    while True:
+        if last_published is None or time() - last_published >= SEND_MSG_INTERVAL:
+            msg = " ".join(["Hello can you hear me?" for i in range(12)])
+
+            radio_manager.transmit_message(msg)
+            last_published = time()
+
+        received_packet = radio_manager.receive_packet()
+
+        if received_packet is not None:
+            received_data = radio_manager.extract_packet_data(received_packet)
+            print(f"Received robot status: {received_data}")
 
 
-def main():
-    args = parse_args()
-    env = SimpleBoatSim(current_level=int(args.current_level), state_mode=args.state_mode, max_obstacles=int(args.max_obstacles), apply_drag_forces=(not bool(args.no_drag)))
-    state = env.reset()
+def robot_run(state_estimator, controller, base_station_conn, args):
+    robot = Robot(state_estimator, controller, sim=True,
+        base_station_conn=base_station_conn, args=args)
+    robot.run()
+
+
+def robot_main():
+    print("RUNNING ON ROBOT")
+
+    import digitalio
+    import board
+    import busio
+    import adafruit_rfm9x
+
+    # blindly copied from example code
+    # likely needs to be modified to correspond to actual wiring
+    RADIO_FREQ_MHZ = 433.0
+    CS = digitalio.DigitalInOut(board.CE1)
+    RESET = digitalio.DigitalInOut(board.D25)
+
+    spi = busio.SPI(board.SCK, MOSI=board.MOSI, MISO=board.MISO)
+    # Initialze RFM radio
+    radio = adafruit_rfm9x.RFM9x(spi, CS, RESET, RADIO_FREQ_MHZ)
+
+    radio.tx_power = 23
+
+    robot = Robot(radio=radio)
+
+    robot.run()
+
+
+def main(args):
+    base_station_conn, radio_conn = Pipe()
+    radio = RadioSim(base_station_conn)
 
     controller = None
     if args.controller == "keyboard":
@@ -77,19 +129,23 @@ def main():
         controller = ControlPlanner()
     elif args.controller == "se_test":
         controller = SETestController()
-
     print("Instantiated controller:", controller.name)
 
-    while True:
-        action = controller.choose_action(env, format_state(args, state, env))
-        state, _, end_sim, _ = env.step(action)
+    state_estimator = IdentityEstimator()
 
-        if not args.no_render:
-            env.render()
+    robot_proc = Process(target=robot_run, args=(state_estimator, controller, base_station_conn, args))
 
-        if end_sim:
-            # This can be replaced with env.close() to end the simulation.
-            env.reset()
+    try:
+        robot_proc.start()
+        base_station_run(radio_conn)
+    finally:
+        robot_proc.terminate()
+
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+
+    if args.robot:
+        robot_main()
+    else:
+        main(args)

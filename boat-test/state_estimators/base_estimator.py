@@ -16,4 +16,5 @@ class IdentityEstimator(BaseEstimator):
         super(IdentityEstimator, self).__init__("Identity Estimator")
 
     def estimate(self, raw_state):
-        return raw_state
+        return [raw_state["lon"], raw_state["lat"], raw_state["speed"],
+            raw_state["magnetometer"], raw_state["gyro"], raw_state["obstacle_data"]]

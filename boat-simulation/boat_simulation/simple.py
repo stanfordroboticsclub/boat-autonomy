@@ -134,7 +134,7 @@ class SimpleBoatSim(object):
 
         state = truth[0:3]
         state += orientation_sensors
-        state.append(orientation_sensors[0])
+        # state.append(orientation_sensors[0])
         state += truth[5:]
 
         return state

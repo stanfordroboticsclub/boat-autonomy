@@ -131,7 +131,7 @@ def main(args):
         controller = SETestController()
     print("Instantiated controller:", controller.name)
 
-    state_estimator = ComplementaryFilter(0.9)
+    state_estimator = IdentityEstimator()
 
     robot_proc = Process(target=robot_run, args=(state_estimator, controller, base_station_conn, args))
 

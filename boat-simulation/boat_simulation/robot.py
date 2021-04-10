@@ -10,7 +10,6 @@ TIMEOUT = 1                 # timeout for receiving new waypoints
 PUBLISH_INTERVAL = 30 * 60  # publishes status every PUBLISH_INTERVAL seconds
 RECEIVE_INTERVAL = 15 * 60  # checks for new waypoints every RECEIVE_INTERVAL seconds
 
-
 class Robot(object):
     """use robot instead of simple to run on actual robot"""
 
@@ -23,7 +22,7 @@ class Robot(object):
         self.state_estimator = state_estimator
         self.controller = controller
 
-        if (sim):
+        if sim:
             self.sim_init(base_station_conn)
         else:
             self.robot_init()
@@ -72,7 +71,8 @@ class Robot(object):
 
 
     def execute_action(self, action):
-        pass
+        if self.sim:
+            self.sim_env.step(action)
 
 
     def publish_status(self):

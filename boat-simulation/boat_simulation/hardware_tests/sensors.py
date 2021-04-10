@@ -7,8 +7,8 @@ class SensorManager(object):
         self.env = sim_env
 
     def _sim_sensor_readings(self):
-        env_state = self.env.get_sensor_observation()
-        labels = ["lon", "lat", "speed", "gyro", "_", "magnetometer", "obstacle_data"]
+        env_state = self.env.get_sensor_observation(ang_vel_noise=0, heading_noise=0)
+        labels = ["lon", "lat", "speed", "gyro", "magnetometer", "obstacle_data"]
         return dict(zip(labels, env_state))
 
     def _real_sensor_readings(self):

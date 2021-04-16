@@ -6,12 +6,13 @@ from state_estimators.base_estimator import BaseEstimator
 
 MAG_READ_INTERVAL = 0.1
 GYRO_READ_INTERVAL = 0.01
+PRINT_INTERVAL = 1
 
 # heavily based off of https://github.com/stanfordroboticsclub/RoverIMU/blob/master/compass.py
 class ComplementaryFilter(BaseEstimator):
     """Complementary filter to estimate orientation."""
 
-    def __init__(self, new_reading_weight):
+    def __init__(self, new_reading_weight, to_print=True):
         super(ComplementaryFilter, self).__init__("Complementary Filter")
         self.last_sin = None
         self.last_cos = None
@@ -19,6 +20,9 @@ class ComplementaryFilter(BaseEstimator):
         self.last_mag_read = None
         self.new_weight = new_reading_weight
         self.old_weight = 1 - self.new_weight
+
+        self.to_print = to_print
+        self.last_print = None
 
 
     def update_magnetometer(self, heading):
@@ -46,7 +50,13 @@ class ComplementaryFilter(BaseEstimator):
 
 
     def get_heading(self):
-        return np.rad2deg(np.arctan2(self.last_sin, self.last_cos))
+        out = np.rad2deg(np.arctan2(self.last_sin, self.last_cos))
+
+        if self.to_print and (self.last_print is None or time() - self.last_print > PRINT_INTERVAL):
+            print(f"Estimator out: {out}")
+            self.last_print = time()
+
+        return out
 
 
     def estimate(self, raw_state):

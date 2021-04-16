@@ -104,13 +104,16 @@ def main(args):
     base_station_conn, radio_conn = Pipe()
     radio = RadioSim(base_station_conn)
 
+    state_estimator = ComplementaryFilter(0.9)
+
     controller = None
     if args.controller == "keyboard":
         controller = KeyboardController()
     elif args.controller == "autonomy_template":
         controller = AutonomyControllerTemplate()
     elif args.controller == "complementary_filter_test":
-        controller = ComplementaryFilterController()
+        controller = KeyboardController()
+        state_estimator = ComplementaryFilter(0.9, to_print=True)
     elif args.controller == "minimal_controller":
         controller = MinimalController()
     elif args.controller == "scipy_logging":
@@ -130,8 +133,6 @@ def main(args):
     elif args.controller == "se_test":
         controller = SETestController()
     print("Instantiated controller:", controller.name)
-
-    state_estimator = IdentityEstimator()
 
     robot_proc = Process(target=robot_run, args=(state_estimator, controller, base_station_conn, args))
 

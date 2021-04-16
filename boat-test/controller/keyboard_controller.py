@@ -58,7 +58,7 @@ class KeyboardController(BaseController):
         delta_x, delta_y = self.get_distances(waypoint, boat_x, boat_y)
         angle = self.get_required_angle_change(boat_angle, delta_x, delta_y)
         angle = angle % 360
-        print(min(angle, angle - 360, key=abs))
+        # print(min(angle, angle - 360, key=abs))
 
         # Accelerating by specified values for one frame
         for event in pygame.event.get():

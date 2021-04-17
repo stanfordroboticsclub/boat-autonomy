@@ -1,5 +1,6 @@
+
 class SensorManager(object):
-    """docstring for SensorManager."""
+    """Aggregates sim/sensor outputs for processing by robot class"""
 
     def __init__(self, sim=False, sim_env=None):
         super(SensorManager, self).__init__()

@@ -12,7 +12,7 @@ PRINT_INTERVAL = 1
 class ComplementaryFilter(BaseEstimator):
     """Complementary filter to estimate orientation."""
 
-    def __init__(self, new_reading_weight, to_print=True):
+    def __init__(self, new_reading_weight, to_print=False):
         super(ComplementaryFilter, self).__init__("Complementary Filter")
         self.last_sin = None
         self.last_cos = None

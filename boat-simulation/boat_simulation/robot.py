@@ -4,6 +4,7 @@ from time import time
 from boat_simulation.latlon import LatLon
 from boat_simulation.managers.radio import RadioManager
 from boat_simulation.managers.sensors import SensorManager
+from boat_simulation.managers.motors import MotorManager
 
 
 TIMEOUT = 1                 # timeout for receiving new waypoints
@@ -45,6 +46,7 @@ class Robot(object):
         radio = RadioSim(base_station_conn)
         self.radio_manager = RadioManager(radio, timeout=TIMEOUT)
         self.sensor_manager = SensorManager(sim=True, sim_env=self.sim_env)
+        self.motor_manager = MotorManager(sim=True, sim_env=self.sim_env)
 
 
     def robot_init(self):
@@ -64,15 +66,11 @@ class Robot(object):
 
         self.radio_manager = RadioManager(radio, timeout=TIMEOUT)
         self.sensor_manager = SensorManager()
+        self.motor_manager = MotorManager()
 
 
     def estimate_currents(self):
         return [0, 0]
-
-
-    def execute_action(self, action):
-        if self.sim:
-            self.sim_env.step(action)
 
 
     def publish_status(self):
@@ -96,7 +94,7 @@ class Robot(object):
 
             # BIG PROBLEM HERE: CONTROLLER RELIES ON SIM ENV TO SELECT ACTION
             action = self.controller.choose_action(self.sim_env, processed_state)
-            self.execute_action(action)
+            self.motor_manager.take_action(action)
 
             if self.last_published is None or time() - self.last_published > PUBLISH_INTERVAL:
                 self.publish_status()

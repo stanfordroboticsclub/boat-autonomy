@@ -3,17 +3,18 @@ from time import time
 
 pi = pigpio.pi()
 
-start = time()
-pi.set_servo_pulsewidth(12, 1500)
+try:
+    start = time()
+    pi.set_servo_pulsewidth(12, 1000)
 
-while time() - start < 5:
-    pass
+    while time() - start < 5:
+        pass
 
+    start = time()
+    pi.set_servo_pulsewidth(12, 1150)
 
-start = time()
-pi.set_servo_pulsewidth(12, 1600)
+    while time() - start < 15:
+        pass
 
-while time() - start < 5:
-    pass
-
-pi.set_servo_pulsewidth(12, 0)
+finally:
+    pi.set_servo_pulsewidth(12, 0)
